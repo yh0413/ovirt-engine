@@ -1,0 +1,200 @@
+:root {
+    --ovirt-masthead-height: 60px;
+    --ovirt-masthead-topborder-size: 4px;
+    --ovirt-welcome-section--Margin-top: 5%;
+    --ovirt-welcome-section--Margin-left: 40px;
+    --ovirt-welcome-section--Margin-right: 40px;
+    --ovirt-error-section--Margin-top: var(--ovirt-welcome-section--Margin-top);
+    --ovirt-error-section--Margin-left: var(
+        --ovirt-welcome-section--Margin-left
+    );
+    --ovirt-error-section--Margin-right: var(
+        --ovirt-welcome-section--Margin-left
+    );
+    --original--pf-global--FontSize--md: 1rem;
+    --pf-global--FontSize--md: 13px;
+}
+.ovirt-container {
+    background-color: #151515;
+    background-image: none;
+    font-size: var(--pf-global--FontSize--md);
+}
+.ovirt-container .pf-c-login {
+    z-index: var(--pf-c-page__main--ZIndex);
+    background-image: none;
+    --pf-global--FontSize--md: var(--original--pf-global--FontSize--md);
+}
+.layout-pf.layout-pf-fixed body {
+    padding-top: var(--ovirt-masthead-height);
+}
+.nav-pf-vertical,
+.nav-pf-secondary-nav,
+.nav-pf-tertiary-nav {
+    top: var(--ovirt-masthead-height);
+}
+.navbar-pf-vertical .nav .nav-item-iconic-skeleton {
+    height: 58px;
+}
+.navbar-pf-vertical .nav .drawer-pf-trigger .drawer-pf-trigger-icon {
+    border-left: 0;
+    border-right: 0;
+}
+.navbar-pf-vertical .nav .nav-item-iconic .badge {
+    margin-left: 5px;
+    margin-right: 0;
+}
+.welcome-section {
+    background-color: inherit;
+    color: #fff;
+    margin-left: var(--ovirt-welcome-section--Margin-left);
+    margin-right: var(--ovirt-welcome-section--Margin-right);
+    margin-top: var(--ovirt-welcome-section--Margin-top);
+}
+.welcome-section .pf-l-split {
+    align-items: flex-end;
+}
+.error-section {
+    background-color: inherit;
+    color: #fff;
+    margin-left: var(--ovirt-error-section--Margin-left);
+    margin-right: var(--ovirt-error-section--Margin-right);
+    margin-top: var(--ovirt-error-section--Margin-top);
+}
+.obrand_background-image {
+    --pf-c-background-image--Filter: none;
+}
+.obrand_background-image::before {
+    background-color: inherit;
+    background-image: url(images/ovirt_landing_bg_top_right.png);
+    background-repeat: no-repeat;
+    background-size: auto;
+    background-position: top right;
+}
+.obrand_background-image::after {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: -1;
+    width: 100%;
+    height: 100%;
+    content: "";
+    background-color: inherit;
+    background-image: url(images/ovirt_landing_bg_bottom_left.png);
+    background-repeat: no-repeat;
+    background-size: auto;
+    background-position: bottom left;
+}
+.obrand_loginPageLogo {
+    border: 0px;
+    width: 120px;
+    height: 45px;
+    display: block;
+    background-image: url(images/ovirt_logo.png);
+    background-size: 120px 45px;
+}
+.obrand_loginPageLogoLink {
+    display: block;
+}
+.obrand_loginPageSubtitle {
+    margin-top: 25px;
+}
+.obrand_ssoHeader {
+    background-color: transparent;
+}
+.obrand_ssoHeader .pf-c-dropdown__toggle:before {
+    border-top: none;
+    border-right: none;
+    border-left: none;
+}
+.obrand_ssoHeader .pf-c-dropdown__menu {
+    list-style: none;
+}
+.obrand_ssoHeader .pf-c-avatar {
+    background-image: url(bundled/patternfly-next/assets/images/img_avatar.svg);
+}
+.obrand_ssoHeader_rootClose {
+    z-index: calc(var(--pf-c-dropdown__menu--ZIndex) - 1);
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+}
+.obrand_welcomePageLogo {
+    border: 0px;
+    width: 120px;
+    height: 45px;
+    display: block;
+    background-image: url(images/ovirt_logo.png);
+    background-size: 120px 45px;
+}
+.obrand_welcomePageLogoLink {
+    display: block;
+}
+.obrand_welcomePageVersionText {
+    color: #fff;
+    margin-left: 30px;
+}
+.obrand_errorPageSection {
+    margin-top: 5%;
+    margin-left: calc(
+        -1 * (var(--ovirt-error-section--Margin-left) +
+                    var(--pf-c-page__main-section--PaddingLeft))
+    );
+    margin-right: calc(
+        -1 * (var(--ovirt-error-section--Margin-right) +
+                    var(--pf-c-page__main-section--PaddingRight))
+    );
+    padding: 50px;
+    background-color: var(--pf-global--BackgroundColor--dark-transparent-100);
+    --pf-global--FontSize--md: var(--original--pf-global--FontSize--md);
+}
+.obrand_errorPageSectionTitle {
+    color: #fff;
+    font-weight: var(--pf-global--FontWeight--bold);
+}
+.obrand_errorPageSectionAction {
+    color: #fff;
+    font-weight: var(--pf-global--FontWeight--normal);
+}
+.obrand_masthead {
+    border-top: var(--ovirt-masthead-topborder-size) solid #00659c;
+    height: var(--ovirt-masthead-height);
+    background-image: url(images/ovirt_masthead_bg.png);
+    background-size: cover;
+}
+.obrand_mastheadLogo {
+    width: 97px;
+    height: 37px;
+    position: relative;
+    top: 1px;
+    border: 0px;
+    background-image: url(images/ovirt_middle_logo.png);
+    background-size: contain;
+    background-repeat: no-repeat;
+}
+.obrand_aboutBackground {
+    width: 565px;
+    height: 355px;
+    background-image: url(images/ovirt_about_bg.png);
+}
+.obrand_aboutApplicationLogo {
+    display: block;
+    width: 81px;
+    height: 30px;
+    border: 0px;
+    position: absolute;
+    bottom: 25px;
+    right: 25px;
+    background-image: url(images/ovirt_logo.png);
+    background-size: contain;
+    background-repeat: no-repeat;
+}
+.obrand_main_tab {
+    height: calc(100vh - 66px);
+    min-height: calc(100vh - 66px);
+}
+.obrand_detail_tab {
+    min-height: 465px;
+}
