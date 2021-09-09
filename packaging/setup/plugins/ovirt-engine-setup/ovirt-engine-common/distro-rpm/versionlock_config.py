@@ -42,7 +42,8 @@ class Plugin(plugin.PluginBase):
             not self.environment[osetupcons.CoreEnv.OFFLINE_PACKAGER] and
             platform.linux_distribution(full_distribution_name=0)[0] in (
                 'redhat',
-                'centos'
+                'centos',
+                'prolinux'
             )
         )
     )

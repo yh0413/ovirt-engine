@@ -98,7 +98,7 @@ class Plugin(plugin.PluginBase):
         condition=lambda self: self._enabled,
     )
     def _late_setup(self):
-        if self._distribution not in ('redhat', 'fedora', 'centos'):
+        if self._distribution not in ('redhat', 'fedora', 'centos', 'prolinux'):
             self.logger.warning(
                 _('Unsupported distribution disabling nfs export')
             )

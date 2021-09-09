@@ -69,7 +69,7 @@ class Plugin(plugin.PluginBase, packager.PackagerBase):
             osetupcons.CoreEnv.OFFLINE_PACKAGER,
             (
                 self.environment[osetupcons.CoreEnv.DEVELOPER_MODE] or
-                self._distribution not in ('redhat', 'fedora', 'centos')
+                self._distribution not in ('redhat', 'fedora', 'centos', 'prolinux')
             ),
         ):
             self.logger.debug('Registering offline packager')

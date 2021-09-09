@@ -451,7 +451,7 @@ class Provisioning(base.Base):
     def supported(self):
         return platform.linux_distribution(
             full_distribution_name=0
-        )[0] in ('redhat', 'fedora', 'centos')
+        )[0] in ('redhat', 'fedora', 'centos', 'prolinux')
 
     def validate(self):
         if not self.services.exists(

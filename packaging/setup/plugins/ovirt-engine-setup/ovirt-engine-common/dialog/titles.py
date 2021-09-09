@@ -46,7 +46,7 @@ class Plugin(plugin.PluginBase):
             osetupcons.Stages.DIALOG_TITLES_E_PRODUCT_OPTIONS,
         ),
         condition=lambda self: self._distribution in (
-            'redhat', 'fedora', 'centos',
+            'redhat', 'fedora', 'centos', 'prolinux',
         ),
     )
     def _title_s_packages(self):

@@ -120,7 +120,7 @@ def main():
     try:
         if platform.linux_distribution(
             full_distribution_name=0
-        )[0] not in ('redhat', 'fedora', 'centos'):
+        )[0] not in ('redhat', 'fedora', 'centos', 'prolinux'):
             raise RuntimeError(_('Unsupported distribution'))
 
         exit = 1

@@ -303,7 +303,7 @@ class Plugin(plugin.PluginBase):
             not self.environment[
                 osetupcons.CoreEnv.DEVELOPER_MODE
             ] and
-            self._distribution in ('redhat', 'fedora', 'centos')
+            self._distribution in ('redhat', 'fedora', 'centos', 'prolinux')
         ),
     )
     def _setup(self):
