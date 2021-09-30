@@ -165,12 +165,12 @@
     background-size: cover;
 }
 .obrand_mastheadLogo {
-    width: 97px;
-    height: 37px;
+    width: 272px;
+    height: 16px;
     position: relative;
-    top: 1px;
+    top: 9px;
     border: 0px;
-    background-image: url(images/ovirt_middle_logo.png);
+    background-image: url(images/ovirt_masthead_logo.png);
     background-size: contain;
     background-repeat: no-repeat;
 }
@@ -181,7 +181,7 @@
 }
 .obrand_aboutApplicationLogo {
     display: block;
-    width: 81px;
+    width: 80px;
     height: 30px;
     border: 0px;
     position: absolute;
