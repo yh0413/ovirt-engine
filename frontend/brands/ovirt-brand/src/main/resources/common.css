@@ -86,8 +86,8 @@
 }
 .obrand_loginPageLogo {
     border: 0px;
-    width: 120px;
-    height: 45px;
+    width: 80px;
+    height: 30px;
     display: block;
     background-image: url(images/ovirt_logo.png);
     background-size: 120px 45px;
@@ -123,8 +123,8 @@
 }
 .obrand_welcomePageLogo {
     border: 0px;
-    width: 120px;
-    height: 45px;
+    width: 80px;
+    height: 30px;
     display: block;
     background-image: url(images/ovirt_logo.png);
     background-size: 120px 45px;
