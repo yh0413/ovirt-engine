@@ -90,7 +90,7 @@
     height: 30px;
     display: block;
     background-image: url(images/ovirt_logo.png);
-    background-size: 120px 45px;
+    background-size: 80px 30px;
 }
 .obrand_loginPageLogoLink {
     display: block;
@@ -127,7 +127,7 @@
     height: 30px;
     display: block;
     background-image: url(images/ovirt_logo.png);
-    background-size: 120px 45px;
+    background-size: 80px 30px;
 }
 .obrand_welcomePageLogoLink {
     display: block;
