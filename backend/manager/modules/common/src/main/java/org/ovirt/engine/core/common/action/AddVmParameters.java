@@ -5,13 +5,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.ovirt.engine.core.common.businessentities.AutoPinningPolicy;
 import org.ovirt.engine.core.common.businessentities.VM;
 import org.ovirt.engine.core.common.businessentities.VmStatic;
 import org.ovirt.engine.core.common.businessentities.storage.DiskVmElement;
 import org.ovirt.engine.core.compat.Guid;
 
 public class AddVmParameters extends VmManagementParametersBase {
+
+    public enum Phase {
+        CREATE_VM,
+        SEAL
+    }
+
     private static final long serialVersionUID = 8641610721114989096L;
 
     private Guid diskOperatorAuthzPrincipalDbId;
@@ -21,7 +26,8 @@ public class AddVmParameters extends VmManagementParametersBase {
     private Map<Guid, Guid> srcVmNicIdToTargetVmNicIdMapping = new HashMap<>();
     // Declare which disks should be attached (AttachDiskToVm is called separately)
     private List<DiskVmElement> disksToAttach = new ArrayList<>();
-    private AutoPinningPolicy autoPinningPolicy;
+
+    private Phase phase = Phase.CREATE_VM;
 
     public AddVmParameters() {
     }
@@ -82,11 +88,12 @@ public class AddVmParameters extends VmManagementParametersBase {
         this.disksToAttach = disksToAttach;
     }
 
-    public void setAutoPinningPolicy(AutoPinningPolicy autoPinningPolicy) {
-        this.autoPinningPolicy = autoPinningPolicy;
+    public Phase getPhase() {
+        return phase;
     }
 
-    public AutoPinningPolicy getAutoPinningPolicy() {
-        return autoPinningPolicy;
+    public void setPhase(Phase phase) {
+        this.phase = phase;
     }
+
 }

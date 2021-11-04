@@ -147,7 +147,6 @@ public class UpdateVdsCommand<T extends UpdateVdsActionParameters>  extends VdsC
                 && validate(validator.clusterNotChanged())
                 && validate(validator.hostProviderExists())
                 && validate(validator.hostProviderTypeMatches())
-                && validateNetworkProviderConfiguration()
                 && isPowerManagementLegal(getParameters().getVdsStaticData().isPmEnabled(),
                         getParameters().getFenceAgents(),
                         oldHost.getClusterCompatibilityVersion().toString(),
@@ -164,12 +163,6 @@ public class UpdateVdsCommand<T extends UpdateVdsActionParameters>  extends VdsC
                 oldHost,
                 updatedHost,
                 installHost);
-    }
-
-    private boolean validateNetworkProviderConfiguration() {
-        return !getParameters().isInstallHost()
-                || super.validateNetworkProviderConfiguration(
-                        getParameters().getVdsStaticData().getOpenstackNetworkProviderId());
     }
 
     @Override
@@ -200,12 +193,11 @@ public class UpdateVdsCommand<T extends UpdateVdsActionParameters>  extends VdsC
             }
             tempVar.setOverrideFirewall(getParameters().getOverrideFirewall());
             tempVar.setActivateHost(getParameters().getActivateHost());
-            tempVar.setNetworkProviderId(getParameters().getVdsStaticData().getOpenstackNetworkProviderId());
+            tempVar.setRebootHost(getParameters().getRebootHost());
             tempVar.setAuthMethod(getParameters().getAuthMethod());
-            tempVar.setActivateHost(getParameters().getActivateHost());
             tempVar.setHostedEngineDeployConfiguration(getParameters().getHostedEngineDeployConfiguration());
             tempVar.setReplaceHostConfiguration(getParameters().getReplaceHostConfiguration());
-            tempVar.setFqdnBox(getParameters().getFqdnBox());
+            tempVar.setFqdnBox(null);
             tempVar.setReconfigureGluster(false);
 
             List<ActionReturnValue> resultList = runInternalMultipleActions(

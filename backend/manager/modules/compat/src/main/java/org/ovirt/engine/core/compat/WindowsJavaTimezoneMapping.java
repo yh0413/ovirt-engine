@@ -27,7 +27,7 @@ public class WindowsJavaTimezoneMapping {
             { "E. Australia Standard Time", "Australia/Brisbane" }, { "E. Europe Standard Time", "Europe/Minsk" },
             { "E. South America Standard Time", "America/Sao_Paulo" }, { "Eastern Standard Time", "America/New_York" },
             { "Egypt Standard Time", "Africa/Cairo" }, { "Ekaterinburg Standard Time", "Asia/Yekaterinburg" },
-            { "FLE Standard Time", "Europe/Kiev" }, { "Fiji Standard Time", "Pacific/Fiji" },
+            { "FLE Standard Time", "Europe/Helsinki" }, { "Fiji Standard Time", "Pacific/Fiji" },
             { "GMT Standard Time", "Europe/London" }, { "GTB Standard Time", "Europe/Istanbul" },
             { "Georgian Standard Time", "Asia/Tbilisi" }, { "Greenland Standard Time", "America/Godthab" },
             { "Greenwich Standard Time", "Africa/Reykjavik" }, { "Hawaiian Standard Time", "Pacific/Honolulu" },
@@ -55,10 +55,10 @@ public class WindowsJavaTimezoneMapping {
             { "Venezuela Standard Time", "America/Caracas" }, { "Vladivostok Standard Time", "Asia/Vladivostok" },
             { "W. Australia Standard Time", "Australia/Perth" }, { "W. Central Africa Standard Time", "Africa/Lagos" },
             { "W. Europe Standard Time", "Europe/Berlin" }, { "West Asia Standard Time", "Asia/Tashkent" },
-            { "West Pacific Standard Time", "Pacific/Port_Moresby" }, { "Yakutsk Standard Time", "Asia/Yakutsk" }, };
+            { "West Pacific Standard Time", "Pacific/Port_Moresby" }, { "Yakutsk Standard Time", "Asia/Yakutsk" },
+            { "Turkey Standard Time", "Europe/Istanbul"} };
 
     private static final Map<String, String> windowsToJava = new HashMap<>();
-    private static final Map<String, String> javaToWindows = new HashMap<>();
 
     static {
         for (String[] zone : zones) {
@@ -66,7 +66,6 @@ public class WindowsJavaTimezoneMapping {
             String java = zone[1];
 
             windowsToJava.put(win, java);
-            javaToWindows.put(java, win);
         }
     }
 

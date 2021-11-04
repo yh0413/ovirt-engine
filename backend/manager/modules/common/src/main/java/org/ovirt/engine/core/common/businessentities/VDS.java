@@ -264,6 +264,7 @@ public class VDS implements Queryable, BusinessEntityWithStatus<Guid, VDSStatus>
         vds.setCpuFlagsMissing(getCpuFlagsMissing());
         vds.setSupportedCpus(getSupportedCpus());
         vds.setBootUuid(getBootUuid());
+        vds.setCdChangePdiv(isCdChangePdiv());
         return vds;
     }
 
@@ -440,14 +441,6 @@ public class VDS implements Queryable, BusinessEntityWithStatus<Guid, VDSStatus>
 
     public void setVdsType(VDSType value) {
         vdsStatic.setVdsType(value);
-    }
-
-    public Guid getOpenstackNetworkProviderId() {
-        return vdsStatic.getOpenstackNetworkProviderId();
-    }
-
-    public void setOpenstackNetworkProviderId(Guid value) {
-        vdsStatic.setOpenstackNetworkProviderId(value);
     }
 
     @Override
@@ -1305,6 +1298,14 @@ public class VDS implements Queryable, BusinessEntityWithStatus<Guid, VDSStatus>
         vdsStatic.setSshKeyFingerprint(sshKeyFingerprint);
     }
 
+    public String getSshPublicKey() {
+        return vdsStatic.getSshPublicKey();
+    }
+
+    public void setSshPublicKey(String sshPublicKey) {
+        vdsStatic.setSshPublicKey(sshPublicKey);
+    }
+
     public Guid getHostProviderId() {
         return vdsStatic.getHostProviderId();
     }
@@ -1748,6 +1749,22 @@ public class VDS implements Queryable, BusinessEntityWithStatus<Guid, VDSStatus>
         vdsDynamic.setBackupEnabled(value);
     }
 
+    public Boolean isColdBackupEnabled() {
+        return vdsDynamic.isColdBackupEnabled();
+    }
+
+    public void setColdBackupEnabled(Boolean value) {
+        vdsDynamic.setColdBackupEnabled(value);
+    }
+
+    public Boolean isClearBitmapsEnabled() {
+        return vdsDynamic.isClearBitmapsEnabled();
+    }
+
+    public void setClearBitmapsEnabled(Boolean value) {
+        vdsDynamic.setClearBitmapsEnabled(value);
+    }
+
     public Set<StorageFormatType> getSupportedDomainVersions() {
         return vdsDynamic.getSupportedDomainVersions();
     }
@@ -1864,5 +1881,13 @@ public class VDS implements Queryable, BusinessEntityWithStatus<Guid, VDSStatus>
 
     public void setBootUuid(String bootUuid) {
         vdsDynamic.setBootUuid(bootUuid);
+    }
+
+    public boolean isCdChangePdiv() {
+        return vdsDynamic.isCdChangePdiv();
+    }
+
+    public void setCdChangePdiv(boolean cdChangePdiv) {
+        vdsDynamic.setCdChangePdiv(cdChangePdiv);
     }
 }

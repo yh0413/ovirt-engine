@@ -25,6 +25,7 @@ import org.ovirt.engine.core.common.queries.IdQueryParameters;
 import org.ovirt.engine.core.common.queries.QueryParametersBase;
 import org.ovirt.engine.core.common.queries.QueryReturnValue;
 import org.ovirt.engine.core.common.queries.QueryType;
+import org.ovirt.engine.core.compat.Guid;
 import org.ovirt.engine.ui.frontend.Frontend;
 import org.ovirt.engine.ui.uicommonweb.Linq;
 import org.ovirt.engine.ui.uicommonweb.UICommand;
@@ -285,9 +286,7 @@ public class DataCenterStorageListModel extends SearchableListModel<StoragePool,
                             items1.stream().anyMatch(new Linq.IdPredicate<>(a.getId()))) {
                         continue;
                     }
-                    if (a.getStorageDomainType() == StorageDomainType.Volume) {
-                        addToList = true;
-                    } else if (a.getStorageDomainType() == getStorageDomainType()) {
+                    if (a.getStorageDomainType() == getStorageDomainType()) {
                         if (getStorageDomainType() == StorageDomainType.Data) {
                             if (getEntity().getStoragePoolFormatType() == null) {
                                 addToList = true;
@@ -455,18 +454,18 @@ public class DataCenterStorageListModel extends SearchableListModel<StoragePool,
         setMsgOnDetach(model);
 
         List<String> list = new ArrayList<>();
-        boolean shouldAddressWarnning = false;
+        boolean shouldAddressWarning = false;
         for (StorageDomain item : getSelectedItems()) {
             list.add(item.getStorageName());
             if (item.getStorageDomainType().isDataDomain()) {
-                shouldAddressWarnning = true;
+                shouldAddressWarning = true;
                 break;
             }
         }
         model.setItems(list);
 
         if (containsLocalStorage(model)) {
-            shouldAddressWarnning = false;
+            shouldAddressWarning = false;
             model.getForce().setIsAvailable(true);
             model.getForce().setIsChangeable(true);
             model.setForceLabel(ConstantsManager.getInstance().getConstants().storageRemovePopupFormatLabel());
@@ -474,8 +473,8 @@ public class DataCenterStorageListModel extends SearchableListModel<StoragePool,
             model.setNote(ConstantsManager.getInstance().getMessages().detachNote(getLocalStoragesFormattedString()));
         }
 
-        if (shouldAddressWarnning) {
-            model.setNote(ConstantsManager.getInstance().getConstants().detachWarnningNote());
+        if (shouldAddressWarning) {
+            model.setNote(ConstantsManager.getInstance().getConstants().detachWarningNote());
         }
         UICommand tempVar = UICommand.createDefaultOkUiCommand("OnDetach", this); //$NON-NLS-1$
         model.getCommands().add(tempVar);
@@ -540,8 +539,11 @@ public class DataCenterStorageListModel extends SearchableListModel<StoragePool,
     private void setMsgOnDetach(ConfirmationModel model) {
         List<QueryType> queries = new ArrayList<>();
         List<QueryParametersBase> params = new ArrayList<>();
+        StringBuilder warningMsgBuilder = new StringBuilder();
 
         model.setMessage(ConstantsManager.getInstance().getConstants().areYouSureYouWantDetachFollowingStoragesMsg());
+
+        // Checks if the selected Storage Domains contain entities with disks on other Storage Domains.
         getSelectedItems().forEach(sd -> {
             queries.add(QueryType.DoesStorageDomainContainEntityWithDisksOnMultipleSDs);
             params.add(new IdQueryParameters(sd.getId()));
@@ -549,8 +551,41 @@ public class DataCenterStorageListModel extends SearchableListModel<StoragePool,
 
         Frontend.getInstance().runMultipleQueries(queries, params, result -> {
             if (result.getReturnValues().stream().anyMatch(QueryReturnValue::getReturnValue)) {
-                model.setMessage(ConstantsManager.getInstance().getMessages()
+                warningMsgBuilder.append(ConstantsManager.getInstance().getMessages()
                         .detachStorageDomainsContainEntitiesWithDisksOnMultipleSDs());
+                model.setMessage(warningMsgBuilder.toString());
+            }
+        });
+
+        // Checks if the selected Storage Domains contain dumps or metadata memory
+        // disks of snapshots on other Storage Domains.
+        queries.clear();
+        params.clear();
+
+        getSelectedItems().forEach(sd -> {
+            queries.add(QueryType.GetAllMetadataAndMemoryDisksOfSnapshotsOnDifferentStorageDomains);
+            params.add(new IdQueryParameters(sd.getId()));
+        });
+
+        Frontend.getInstance().runMultipleQueries(queries, params, result -> {
+            List<QueryReturnValue> returnValues = result.getReturnValues();
+            if (returnValues != null && !returnValues.isEmpty()) {
+                List<Guid> allDisksId = new ArrayList<>();
+                returnValues.forEach(disksOnSd -> {
+                    allDisksId.addAll(disksOnSd.getReturnValue());
+                });
+                if (!allDisksId.isEmpty()) {
+                    if (warningMsgBuilder.length() > 0) {
+                        warningMsgBuilder.append("\n\n"); //$NON-NLS-1$
+                    }
+                    warningMsgBuilder.append(ConstantsManager.getInstance().getMessages()
+                            .removeStorageDomainWithMemoryVolumesOnMultipleSDs(
+                                    allDisksId.stream()
+                                            .filter(diskId -> !diskId.toString().isEmpty())
+                                            .map(String::valueOf)
+                                            .collect(Collectors.joining(", ")))); //$NON-NLS-1$
+                    model.setMessage(warningMsgBuilder.toString());
+                }
             }
         });
     }

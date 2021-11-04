@@ -121,18 +121,6 @@ public interface OsRepository {
     int getVgamemMultiplier(int osId);
 
     /**
-     * @return map (osId -> compatibility version -> Boolean) that indicates balloon disabled for all OSs and
-     * compatibility versions
-     */
-    Map<Integer, Map<Version, Boolean>> getBalloonSupportMap();
-
-    /**
-     * Checks if is recommended enable the OS balloon.
-     * @return an boolean
-     */
-    boolean isBalloonEnabled(int osId, Version version);
-
-    /**
      * Checks if that OS network devices support hotplug.
      * @return an boolean
      */
@@ -251,8 +239,6 @@ public interface OsRepository {
      */
     Map<ArchitectureType, Integer> getDefaultOSes();
 
-    boolean isSingleQxlDeviceEnabled(int osId);
-
     /**
      * Checks if is recommended enable the HyperV optimizations
      * @return an boolean
@@ -325,4 +311,27 @@ public interface OsRepository {
      * @param osId operation system id
      */
     boolean requiresOvirtGuestAgentChannel(int osId);
+
+    /**
+     * @return a map from OS id to TPM-allowed Booleans
+     */
+    Map<Integer, Boolean> getTpmAllowedMap();
+
+    /**
+     * Checks if the operating system supports virtual TPM.
+     * @param osId operation system id
+     */
+    boolean isTpmAllowed(int osId);
+
+    /**
+     * Checks if the operating system supports Q35 chipset
+     * @param osId operation system id
+     */
+    boolean isQ35Supported(int osId);
+
+    /**
+     * Checks if the operating system supports SecureBoot
+     * @param osId operation system id
+     */
+    boolean isSecureBootSupported(int osId);
 }

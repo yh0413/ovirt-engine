@@ -86,6 +86,11 @@ public abstract class OvfWriter implements IOvfBuilder {
     @Override
     public void buildReference() {
         _writer.writeStartElement("References");
+        writeReferenceData();
+        _writer.writeEndElement();
+    }
+
+    protected void writeReferenceData() {
         _images.forEach(image -> {
             _writer.writeStartElement("File");
             writeFile(image);
@@ -96,7 +101,6 @@ public abstract class OvfWriter implements IOvfBuilder {
             writeFileForLunDisk(lun);
             _writer.writeEndElement();
         });
-        _writer.writeEndElement();
     }
 
     protected abstract void writeFile(DiskImage image);
@@ -319,7 +323,9 @@ public abstract class OvfWriter implements IOvfBuilder {
         }
 
         _writer.writeElement(MULTI_QUEUES_ENABLED, String.valueOf(vmBase.isMultiQueuesEnabled()));
+        _writer.writeElement(VIRTIO_SCSI_MULTI_QUEUES_ENABLED, String.valueOf(vmBase.isVirtioScsiMultiQueuesEnabled()));
         _writer.writeElement(USE_HOST_CPU, String.valueOf(vmBase.isUseHostCpuFlags()));
+        _writer.writeElement(BALLOON_ENABLED, String.valueOf(vmBase.isBalloonEnabled()));
     }
 
     protected void writeCustomEmulatedMachine() {
@@ -327,21 +333,16 @@ public abstract class OvfWriter implements IOvfBuilder {
     }
 
     protected void writeBiosType() {
-        BiosType effectiveBiosType = getEffectiveBiosType();
-        if (effectiveBiosType != null && effectiveBiosType != BiosType.CLUSTER_DEFAULT) {
+        BiosType biosType = vmBase.getBiosType();
+        if (biosType != null) {
             // For compatibility with oVirt 4.3, use values of BiosType constants that existed before
             // introduction of CLUSTER_DEFAULT:  0 == I440FX_SEA_BIOS and so on
             _writer.writeStartElement(BIOS_TYPE);
-            if (isCustomBiosType()) {
-                _writer.writeAttributeString(OVF_PREFIX, getOvfUri(), "custom", "true");
-            }
-            _writer.writeRaw(String.valueOf(effectiveBiosType.getValue() - 1));
+            _writer.writeRaw(String.valueOf(biosType.getValue() - 1));
             _writer.writeEndElement();
         }
     }
 
-    protected abstract BiosType getEffectiveBiosType();
-    protected abstract boolean isCustomBiosType();
     protected abstract String getInstaceIdTag();
 
     protected void writeCustomCpuName() {
@@ -390,6 +391,7 @@ public abstract class OvfWriter implements IOvfBuilder {
         writeMonitors();
         writeGraphics();
         writeCd();
+        writeTpm();
         writeOtherDevices();
         _writer.writeEndElement();
     }
@@ -440,7 +442,7 @@ public abstract class OvfWriter implements IOvfBuilder {
                 _writer.writeElement(RASD_URI, "ResourceType", adjustHardwareResourceType(OvfHardware.Monitor));
                 // we should write number of monitors for each entry for backward compatibility
                 _writer.writeElement(RASD_URI, "VirtualQuantity", String.valueOf(numOfMonitors));
-                _writer.writeElement(RASD_URI, "SinglePciQxl", String.valueOf(vmBase.getSingleQxlPci()));
+                _writer.writeElement(RASD_URI, "SinglePciQxl", String.valueOf(VmDeviceCommonUtils.isSingleQxlPci(vmBase)));
                 writeVmDeviceInfo(vmDevice);
                 _writer.writeEndElement(); // item
                 if (i++ == numOfMonitors) {
@@ -483,7 +485,26 @@ public abstract class OvfWriter implements IOvfBuilder {
         }
     }
 
-    private void writeVmDeviceInfo(VmDevice vmDevice) {
+    private void writeTpm() {
+        Collection<VmDevice> devices = vmBase.getManagedDeviceMap().values();
+        for (VmDevice vmDevice : devices) {
+            if (vmDevice.getDevice().equals(VmDeviceType.TPM.getName())) {
+                _writer.writeStartElement("Item");
+                _writer.writeElement(RASD_URI, "Caption", "TPM");
+                _writer.writeElement(RASD_URI, "ResourceType", OvfHardware.OTHER);
+                _writer.writeElement(RASD_URI, getInstaceIdTag(), vmDevice.getId().getDeviceId().toString());
+                writeTpmHostResource();
+                writeVmDeviceInfo(vmDevice);
+                _writer.writeEndElement(); // item
+                break; // only one TPM device is currently supported
+            }
+        }
+    }
+
+    protected void writeTpmHostResource() {
+    }
+
+    protected void writeVmDeviceInfo(VmDevice vmDevice) {
         _writer.writeElement(VMD_TYPE, String.valueOf(vmDevice.getType().getValue()));
         _writer.writeElement(VMD_DEVICE, String.valueOf(vmDevice.getDevice()));
         _writer.writeElement(VMD_ADDRESS, vmDevice.getAddress());

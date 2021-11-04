@@ -51,7 +51,7 @@ public enum TimeZoneType {
             generalTimeZones.put("Africa/Algiers", "(GMT+01:00) Algeria Standard Time");
             generalTimeZones.put("Asia/Yekaterinburg", "(GMT+05:00) Ekaterinburg Standard Time");
             generalTimeZones.put("Pacific/Fiji", "(GMT+12:00) Fiji Standard Time");
-            generalTimeZones.put("Europe/Kiev", "(GMT+02:00) FLE Standard Time");
+            generalTimeZones.put("Europe/Helsinki", "(GMT+02:00) FLE Standard Time");
             generalTimeZones.put("Asia/Tbilisi", "(GMT+04:00) Georgian Standard Time");
             generalTimeZones.put("Europe/London", "(GMT+00:00) London Standard Time"); // Updated display name
             generalTimeZones.put("America/Godthab", "(GMT-03:00) Greenland Standard Time");
@@ -59,7 +59,7 @@ public enum TimeZoneType {
             generalTimeZones.put("Europe/Bucharest", "(GMT+02:00) GTB Standard Time");
             generalTimeZones.put("Pacific/Honolulu", "(GMT-10:00) Hawaiian Standard Time");
             generalTimeZones.put("Asia/Calcutta", "(GMT+05:30) India Standard Time");
-            generalTimeZones.put("Asia/Tehran", "(GMT+03:00) Iran Standard Time");
+            generalTimeZones.put("Asia/Tehran", "(GMT+03:30) Iran Standard Time");
             generalTimeZones.put("Asia/Jerusalem", "(GMT+02:00) Israel Standard Time");
             generalTimeZones.put("Asia/Seoul", "(GMT+09:00) Korea Standard Time");
             // generalTimeZones.put("(GMT-02:00) Mid-Atlantic Standard Time", 75); // Not in Unicode CLDR list
@@ -97,6 +97,8 @@ public enum TimeZoneType {
             generalTimeZones.put("Pacific/Port_Moresby", "(GMT+10:00) West Pacific Standard Time");
             generalTimeZones.put("Asia/Yakutsk", "(GMT+09:00) Yakutsk Standard Time");
             generalTimeZones.put("America/Caracas", "(GMT-04:30) Venezuelan Standard Time");
+            generalTimeZones.put("Europe/Istanbul", "(GMT+03:00) Turkey Standard Time");
+            generalTimeZones.put("Australia/Sydney", "(GMT+10:00) AUS Eastern Standard Time");
 
             return sortMapByValue(generalTimeZones);
         }
@@ -180,6 +182,8 @@ public enum TimeZoneType {
             windowsTimeZones.put("West Pacific Standard Time", "(GMT+10:00) West Pacific Standard Time");
             windowsTimeZones.put("N. Central Asia Standard Time", "(GMT+06:00) N. Central Asia Standard Time");
             windowsTimeZones.put("Venezuela Standard Time", "(GMT-04:30) Venezuela Standard Time");
+            windowsTimeZones.put("Turkey Standard Time", "(GMT+03:00) Turkey Standard Time");
+            windowsTimeZones.put("AUS Eastern Standard Time", "(GMT+10:00) AUS Eastern Standard Time");
 
             return sortMapByValue(windowsTimeZones);
         }
@@ -216,22 +220,6 @@ public enum TimeZoneType {
 
     private static int extractOffsetFromMatch(Match match) {
         return Integer.parseInt(match.groups().get(0).getValue().substring(3).replace(":", "").replace("+", ""));
-    }
-
-    public int getStandardOffset(String timeZoneKey) {
-        String s = getTimeZoneList().get(timeZoneKey);
-        Match match = Regex.match(s, TimeZoneExtractTimePattern);
-        int value = 0;
-        if(match.success() && match.groups().size() > 0) {
-            value = extractOffsetFromMatch(match);
-            boolean neg = value < 0;
-            value = Math.abs(value);
-            value = (value / 100) * 60 + value % 100;
-            if(neg) {
-                value *= -1;
-            }
-        }
-        return value;
     }
 
     protected abstract Map<String, String> initializeTimeZoneList();

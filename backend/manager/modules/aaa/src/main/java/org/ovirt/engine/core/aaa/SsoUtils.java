@@ -33,7 +33,7 @@ public class SsoUtils {
     public static String createUserSession(HttpServletRequest req,
             Map<String, Object> jsonResponse,
             boolean loginAsAdmin) throws Exception {
-        String engineSessionId = null;
+        String engineSessionId;
         if (!FiltersHelper.isStatusOk(jsonResponse)) {
             throw new RuntimeException((String) jsonResponse.get("MESSAGE"));
         }
@@ -43,9 +43,10 @@ public class SsoUtils {
         String profile = null;
         int index = username.lastIndexOf("@");
         if (index != -1) {
-            profile = username.substring(index+1);
+            profile = username.substring(index + 1);
             username = username.substring(0, index);
         }
+        String authzName = (String) jsonResponse.get("user_authz");
         try {
             ctx = new InitialContext();
             ActionReturnValue queryRetVal = FiltersHelper.getBackend(ctx).runAction(ActionType.CreateUserSession,
@@ -66,14 +67,17 @@ public class SsoUtils {
             if (!queryRetVal.getSucceeded()) {
                 if (queryRetVal.getActionReturnValue() == CreateUserSessionsError.NUM_OF_SESSIONS_EXCEEDED) {
                     throw new RuntimeException(String.format(
-                            "Unable to login user %s@%s because the maximum number of allowed sessions %s is exceeded",
+                            "Unable to login user %s@%s with profile [%s] " +
+                                    "because the maximum number of allowed sessions %s is exceeded",
                             username,
+                            authzName,
                             profile,
                             EngineLocalConfig.getInstance().getInteger("ENGINE_MAX_USER_SESSIONS")));
                 }
                 throw new RuntimeException(String.format(
-                        "The user %s@%s is not authorized to perform login",
+                        "The user %s@%s with profile [%s] is not authorized to perform login",
                         username,
+                        authzName,
                         profile));
             }
             engineSessionId = queryRetVal.getActionReturnValue();
@@ -86,8 +90,8 @@ public class SsoUtils {
                         true);
             }
         } catch (Exception ex) {
-            log.error("User '{}@{}' login failed: {}", username, profile, ex.getMessage());
-            log.debug("User '{}@{}' login failed", username, profile, ex);
+            log.error("User '{}@{}' with profile [{}] login failed: {}", username, authzName, profile, ex.getMessage());
+            log.debug("User '{}@{}' with profile [{}] login failed", username, authzName, profile, ex);
             throw ex;
         } finally {
             try {

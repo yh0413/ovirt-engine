@@ -16,8 +16,6 @@ public class NumaUnitToVmBaseBuilder<T extends VmBase> extends BaseSyncBuilder<U
 
     @Override
     protected void build(UnitVmModel model, VmBase vm) {
-        // Tune Mode:
-        vm.setNumaTuneMode(model.getNumaTuneMode().getSelectedItem());
         // Virtual nodes:
         Integer nodeCount = model.getNumaNodeCount().getEntity();
         // clear NUMA nodes

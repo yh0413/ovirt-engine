@@ -26,7 +26,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.mockito.MockitoSession;
-import org.mockito.internal.util.reflection.FieldSetter;
+import org.mockito.internal.configuration.plugins.Plugins;
+import org.mockito.plugins.MemberAccessor;
 import org.mockito.quality.Strictness;
 import org.ovirt.engine.core.common.businessentities.ArchitectureType;
 import org.ovirt.engine.core.common.businessentities.BiosType;
@@ -47,6 +48,8 @@ import org.ovirt.engine.core.utils.ovf.xml.XmlTextWriter;
 
 public class LibvirtVmXmlBuilderTest {
     MockitoSession mockito;
+
+    private final MemberAccessor accessor = Plugins.getMemberAccessor();
 
     @BeforeEach
     void setUp() {
@@ -75,9 +78,11 @@ public class LibvirtVmXmlBuilderTest {
 
     @SuppressWarnings("unused")
     public static Stream<MockConfigDescriptor<?>> vgpuPlacementNotSupported() {
-        return Stream.concat(
-            Stream.of(MockConfigDescriptor.of(ConfigValues.VgpuPlacementSupported, Version.v4_3, Boolean.FALSE)),
-            Stream.of(MockConfigDescriptor.of(ConfigValues.VgpuPlacementSupported, Version.v4_2, Boolean.FALSE)));
+        return Stream.of(MockConfigDescriptor.of(ConfigValues.VgpuFramebufferSupported, Version.v4_5, Boolean.TRUE),
+                MockConfigDescriptor.of(ConfigValues.VgpuFramebufferSupported, Version.v4_3, Boolean.FALSE),
+                MockConfigDescriptor.of(ConfigValues.VgpuPlacementSupported, Version.v4_5, Boolean.FALSE),
+                MockConfigDescriptor.of(ConfigValues.VgpuPlacementSupported, Version.v4_3, Boolean.FALSE),
+                MockConfigDescriptor.of(ConfigValues.VgpuPlacementSupported, Version.v4_2, Boolean.FALSE));
     }
 
     public static Stream<MockConfigDescriptor<?>> tscConfig() {
@@ -92,7 +97,7 @@ public class LibvirtVmXmlBuilderTest {
         XmlTextWriter writer = mock(XmlTextWriter.class);
         Map<String, String> properties = new HashMap<>();
 
-        setUpMdevTest(underTest, writer, properties);
+        setUpMdevTest(underTest, writer, properties, Version.v4_3);
         VM vm = getVm(underTest);
 
         VmDevice device = mock(VmDevice.class);
@@ -118,7 +123,7 @@ public class LibvirtVmXmlBuilderTest {
         XmlTextWriter writer = mock(XmlTextWriter.class);
         Map<String, String> properties = new HashMap<>();
 
-        setUpMdevTest(underTest, writer, properties);
+        setUpMdevTest(underTest, writer, properties, Version.v4_3);
         VM vm = getVm(underTest);
 
         underTest.writeVGpu();
@@ -130,6 +135,7 @@ public class LibvirtVmXmlBuilderTest {
         setMdevDisplayOn(underTest, vm);
         underTest.writeVGpu();
         verify(writer, times(1)).writeAttributeString("display", "on");
+        verify(writer, times(0)).writeAttributeString("ramfb", "on");
 
         // display="on" is inserted for each mdev
         reset(writer);
@@ -190,7 +196,24 @@ public class LibvirtVmXmlBuilderTest {
     }
 
     @Test
-    void testNoneVideo() throws NoSuchFieldException  {
+    @MockedConfig("vgpuPlacementNotSupported")
+    void testMdevRamfb() throws NoSuchFieldException, IllegalAccessException {
+        LibvirtVmXmlBuilder underTest = mock(LibvirtVmXmlBuilder.class);
+        XmlTextWriter writer = mock(XmlTextWriter.class);
+        Map<String, String> properties = new HashMap<>();
+
+        setUpMdevTest(underTest, writer, properties, Version.v4_5);
+        VM vm = getVm(underTest);
+
+        when(vm.getCustomProperties()).thenReturn("mdev_type=nvidia28");
+        setMdevDisplayOn(underTest, vm);
+        underTest.writeVGpu();
+        verify(writer, times(1)).writeAttributeString("display", "on");
+        verify(writer, times(1)).writeAttributeString("ramfb", "on");
+    }
+
+    @Test
+    void testNoneVideo() throws NoSuchFieldException, IllegalAccessException {
         LibvirtVmXmlBuilder underTest = mock(LibvirtVmXmlBuilder.class);
         XmlTextWriter writer = mock(XmlTextWriter.class);
 
@@ -203,7 +226,7 @@ public class LibvirtVmXmlBuilderTest {
         verify(writer, times(1)).writeAttributeString("type", "none");
     }
 
-    private void setupNoneVideoTest(LibvirtVmXmlBuilder underTest) throws NoSuchFieldException {
+    private void setupNoneVideoTest(LibvirtVmXmlBuilder underTest) throws NoSuchFieldException, IllegalAccessException {
         doCallRealMethod().when(underTest).writeDevices();
 
         VmInfoBuildUtils utils = mock(VmInfoBuildUtils.class);
@@ -213,22 +236,22 @@ public class LibvirtVmXmlBuilderTest {
         VM vm = mock(VM.class);
         when(vm.getId()).thenReturn(Guid.newGuid());
         when(vm.getClusterArch()).thenReturn(ArchitectureType.x86_64);
-        when(vm.getCustomBiosType()).thenReturn(BiosType.I440FX_SEA_BIOS);
-        when(vm.getEffectiveBiosType()).thenReturn(BiosType.I440FX_SEA_BIOS);
+        when(vm.getBiosType()).thenReturn(BiosType.I440FX_SEA_BIOS);
+        when(vm.getBiosType()).thenReturn(BiosType.I440FX_SEA_BIOS);
         when(vm.getBootSequence()).thenReturn(BootSequence.C);
         setVm(underTest, vm);
 
         setVolumeLeases(underTest, new ArrayList<>());
     }
 
-    private void setVolumeLeases(LibvirtVmXmlBuilder underTest, ArrayList<Object> volumeLeases) throws NoSuchFieldException {
+    private void setVolumeLeases(LibvirtVmXmlBuilder underTest, ArrayList<Object> volumeLeases) throws NoSuchFieldException, IllegalAccessException {
         Field volumeLeasesField = LibvirtVmXmlBuilder.class.getDeclaredField("volumeLeases");
-        FieldSetter.setField(underTest, volumeLeasesField, volumeLeases);
+        accessor.set(volumeLeasesField, underTest, volumeLeases);
     }
 
     @Test
     @MockedConfig("tscConfig")
-    void testTscFrequencyCpu() throws NoSuchFieldException {
+    void testTscFrequencyCpu() throws NoSuchFieldException, IllegalAccessException {
         LibvirtVmXmlBuilder underTest = mock(LibvirtVmXmlBuilder.class);
         XmlTextWriter writer = mock(XmlTextWriter.class);
         Map<String, String> properties = new HashMap<>();
@@ -238,6 +261,7 @@ public class LibvirtVmXmlBuilderTest {
         setUpTscTest(underTest, vm, writer, properties);
         setTscFreqSupplier(underTest);
         setCpuFlagsSupplier(underTest, "tsc,constant_tsc,nonstop_tsc");
+        setCpuModelSupplier(underTest);
 
         underTest.writeCpu(false);
         verify(writer, times(1)).writeStartElement("feature");
@@ -247,7 +271,7 @@ public class LibvirtVmXmlBuilderTest {
 
     @Test
     @MockedConfig("tscConfig")
-    void testTscFrequencyTimer() throws NoSuchFieldException {
+    void testTscFrequencyTimer() throws NoSuchFieldException, IllegalAccessException {
         LibvirtVmXmlBuilder underTest = mock(LibvirtVmXmlBuilder.class);
         XmlTextWriter writer = mock(XmlTextWriter.class);
         Map<String, String> properties = new HashMap<>();
@@ -258,6 +282,7 @@ public class LibvirtVmXmlBuilderTest {
         setTscFreqSupplier(underTest);
         setVmInfoBuildUtils(underTest);
         setCpuFlagsSupplier(underTest, "tsc,constant_tsc,nonstop_tsc");
+        setCpuModelSupplier(underTest);
 
         underTest.writeClock();
         verify(writer, times(4)).writeStartElement("timer");
@@ -266,7 +291,7 @@ public class LibvirtVmXmlBuilderTest {
     }
 
     @Test
-    void testHostdevScsiDisk() throws NoSuchFieldException {
+    void testHostdevScsiDisk() throws NoSuchFieldException, IllegalAccessException {
         LibvirtVmXmlBuilder underTest = mock(LibvirtVmXmlBuilder.class);
         XmlTextWriter writer = mock(XmlTextWriter.class);
         Map<String, String> properties = new HashMap<>();
@@ -335,31 +360,36 @@ public class LibvirtVmXmlBuilderTest {
         verify(writer, times(1)).writeAttributeString("function", "4");
     }
 
-    private VmInfoBuildUtils setVmInfoBuildUtils(LibvirtVmXmlBuilder underTest) throws NoSuchFieldException {
+    private VmInfoBuildUtils setVmInfoBuildUtils(LibvirtVmXmlBuilder underTest) throws NoSuchFieldException, IllegalAccessException {
         Field vmInfoBuildUtils = LibvirtVmXmlBuilder.class.getDeclaredField("vmInfoBuildUtils");
         VmInfoBuildUtils buildUtils = mock(VmInfoBuildUtils.class);
         when(buildUtils.getVmTimeZone(any())).thenReturn(0);
-        FieldSetter.setField(underTest, vmInfoBuildUtils, buildUtils);
+        accessor.set(vmInfoBuildUtils, underTest, buildUtils);
 
         return buildUtils;
     }
 
-    private MemoizingSupplier setHostDeviceSupplier(LibvirtVmXmlBuilder underTest) throws NoSuchFieldException {
+    private MemoizingSupplier setHostDeviceSupplier(LibvirtVmXmlBuilder underTest) throws NoSuchFieldException, IllegalAccessException {
         Field hostDevicesSupplierUtils = LibvirtVmXmlBuilder.class.getDeclaredField("hostDevicesSupplier");
         MemoizingSupplier supplier = mock(MemoizingSupplier.class);
-        FieldSetter.setField(underTest, hostDevicesSupplierUtils, supplier);
+        accessor.set(hostDevicesSupplierUtils, underTest, supplier);
 
         return supplier;
     }
 
-    private void setTscFreqSupplier(LibvirtVmXmlBuilder underTest) throws NoSuchFieldException {
+    private void setTscFreqSupplier(LibvirtVmXmlBuilder underTest) throws NoSuchFieldException, IllegalAccessException {
         Field tscFrequencySupplier = LibvirtVmXmlBuilder.class.getDeclaredField("tscFrequencySupplier");
-        FieldSetter.setField(underTest, tscFrequencySupplier, new MemoizingSupplier<>(() -> "1234567980"));
+        accessor.set(tscFrequencySupplier, underTest, new MemoizingSupplier<>(() -> "1234567980"));
     }
 
-    private void setCpuFlagsSupplier(LibvirtVmXmlBuilder underTest, String flags) throws NoSuchFieldException {
+    private void setCpuFlagsSupplier(LibvirtVmXmlBuilder underTest, String flags) throws NoSuchFieldException, IllegalAccessException {
         Field cpuFlagsSupplier = LibvirtVmXmlBuilder.class.getDeclaredField("cpuFlagsSupplier");
-        FieldSetter.setField(underTest, cpuFlagsSupplier, new MemoizingSupplier<>(() -> flags));
+        accessor.set(cpuFlagsSupplier, underTest, new MemoizingSupplier<>(() -> flags));
+    }
+
+    private void setCpuModelSupplier(LibvirtVmXmlBuilder underTest) throws NoSuchFieldException, IllegalAccessException {
+        Field cpuModelSupplier = LibvirtVmXmlBuilder.class.getDeclaredField("cpuModelSupplier");
+        accessor.set(cpuModelSupplier, underTest, new MemoizingSupplier<>(() -> "unknown"));
     }
 
     private VM getVm(LibvirtVmXmlBuilder underTest) throws NoSuchFieldException, IllegalAccessException {
@@ -368,16 +398,16 @@ public class LibvirtVmXmlBuilderTest {
         return (VM) vmField.get(underTest);
     }
 
-    private void setMdevDisplayOn(LibvirtVmXmlBuilder underTest, VM vm) throws NoSuchFieldException {
+    private void setMdevDisplayOn(LibvirtVmXmlBuilder underTest, VM vm) throws NoSuchFieldException, IllegalAccessException {
         Field mdevDisplayOnField = LibvirtVmXmlBuilder.class.getDeclaredField("mdevDisplayOn");
-        FieldSetter.setField(underTest, mdevDisplayOnField, MDevTypesUtils.isMdevDisplayOn(vm));
+        accessor.set(mdevDisplayOnField, underTest, MDevTypesUtils.isMdevDisplayOn(vm));
     }
 
-    private void setUpMdevTest(LibvirtVmXmlBuilder underTest, XmlTextWriter writer, Map<String, String> properties) throws NoSuchFieldException {
+    private void setUpMdevTest(LibvirtVmXmlBuilder underTest, XmlTextWriter writer, Map<String, String> properties, Version compatibilityVersion) throws NoSuchFieldException, IllegalAccessException {
         doCallRealMethod().when(underTest).writeVGpu();
         Map<String, Map<String, String>> metadata = new HashMap<>();
         VM vm = mock(VM.class);
-        when(vm.getCompatibilityVersion()).thenReturn(Version.v4_3);
+        when(vm.getCompatibilityVersion()).thenReturn(compatibilityVersion);
         setVm(underTest, vm);
         setProperties(underTest, properties);
         setMdevDisplayOn(underTest, vm);
@@ -385,7 +415,7 @@ public class LibvirtVmXmlBuilderTest {
         setMetadata(underTest, metadata);
     }
 
-    private void setUpTscTest(LibvirtVmXmlBuilder underTest, VM vm, XmlTextWriter writer, Map<String, String> properties) throws NoSuchFieldException {
+    private void setUpTscTest(LibvirtVmXmlBuilder underTest, VM vm, XmlTextWriter writer, Map<String, String> properties) throws NoSuchFieldException, IllegalAccessException {
         doCallRealMethod().when(underTest).writeCpu(false);
         doCallRealMethod().when(underTest).writeClock();
         Map<String, Map<String, String>> metadata = new HashMap<>();
@@ -397,13 +427,13 @@ public class LibvirtVmXmlBuilderTest {
         setMetadata(underTest, metadata);
     }
 
-    private void setUpHostdevScsiTest(LibvirtVmXmlBuilder underTest, XmlTextWriter writer, Map<String, String> properties, VmDevice device) throws NoSuchFieldException {
+    private void setUpHostdevScsiTest(LibvirtVmXmlBuilder underTest, XmlTextWriter writer, Map<String, String> properties, VmDevice device) throws NoSuchFieldException, IllegalAccessException {
         doCallRealMethod().when(underTest).writeDevices();
         Map<String, Map<String, String>> metadata = new HashMap<>();
         VM vm = mock(VM.class);
         when(vm.getClusterArch()).thenReturn(ArchitectureType.x86_64);
-        when(vm.getCustomBiosType()).thenReturn(BiosType.I440FX_SEA_BIOS);
-        when(vm.getEffectiveBiosType()).thenReturn(BiosType.I440FX_SEA_BIOS);
+        when(vm.getBiosType()).thenReturn(BiosType.I440FX_SEA_BIOS);
+        when(vm.getBiosType()).thenReturn(BiosType.I440FX_SEA_BIOS);
         when(vm.getBootSequence()).thenReturn(BootSequence.C);
 
         VmInfoBuildUtils buildUtils = setVmInfoBuildUtils(underTest);
@@ -435,33 +465,33 @@ public class LibvirtVmXmlBuilderTest {
         setVolumeLeases(underTest, new ArrayList<>());
     }
 
-    private void setVm(LibvirtVmXmlBuilder underTest, VM vm) throws NoSuchFieldException {
+    private void setVm(LibvirtVmXmlBuilder underTest, VM vm) throws NoSuchFieldException, IllegalAccessException {
         Field vmField = LibvirtVmXmlBuilder.class.getDeclaredField("vm");
-        FieldSetter.setField(underTest, vmField, vm);
+        accessor.set(vmField, underTest, vm);
     }
 
-    private void setMetadata(LibvirtVmXmlBuilder underTest, Map<String, Map<String, String>> metadata) throws NoSuchFieldException {
+    private void setMetadata(LibvirtVmXmlBuilder underTest, Map<String, Map<String, String>> metadata) throws NoSuchFieldException, IllegalAccessException {
         Field metadataField = LibvirtVmXmlBuilder.class.getDeclaredField("mdevMetadata");
-        FieldSetter.setField(underTest, metadataField, metadata);
+        accessor.set(metadataField, underTest, metadata);
     }
 
-    private void setWriter(LibvirtVmXmlBuilder underTest, XmlTextWriter writer) throws NoSuchFieldException {
+    private void setWriter(LibvirtVmXmlBuilder underTest, XmlTextWriter writer) throws NoSuchFieldException, IllegalAccessException {
         Field writerField = LibvirtVmXmlBuilder.class.getDeclaredField("writer");
-        FieldSetter.setField(underTest, writerField, writer);
+        accessor.set(writerField, underTest, writer);
     }
 
-    private void setProperties(LibvirtVmXmlBuilder underTest, Map<String, String> properties) throws NoSuchFieldException {
+    private void setProperties(LibvirtVmXmlBuilder underTest, Map<String, String> properties) throws NoSuchFieldException, IllegalAccessException {
         Field propField = LibvirtVmXmlBuilder.class.getDeclaredField("vmCustomProperties");
-        FieldSetter.setField(underTest, propField, properties);
+        accessor.set(propField, underTest, properties);
     }
 
-    private void setVmInfoBuildUtils(LibvirtVmXmlBuilder underTest, VmInfoBuildUtils utils) throws NoSuchFieldException {
+    private void setVmInfoBuildUtils(LibvirtVmXmlBuilder underTest, VmInfoBuildUtils utils) throws NoSuchFieldException, IllegalAccessException {
         Field vmInfoBuildUtilsField = LibvirtVmXmlBuilder.class.getDeclaredField("vmInfoBuildUtils");
-        FieldSetter.setField(underTest, vmInfoBuildUtilsField, utils);
+        accessor.set(vmInfoBuildUtilsField, underTest, utils);
     }
 
-    private void setInterface(LibvirtVmXmlBuilder underTest, String cdInterface) throws NoSuchFieldException {
+    private void setInterface(LibvirtVmXmlBuilder underTest, String cdInterface) throws NoSuchFieldException, IllegalAccessException {
         Field cdInterfaceField = LibvirtVmXmlBuilder.class.getDeclaredField("cdInterface");
-        FieldSetter.setField(underTest, cdInterfaceField, cdInterface);
+        accessor.set(cdInterfaceField, underTest, cdInterface);
     }
 }

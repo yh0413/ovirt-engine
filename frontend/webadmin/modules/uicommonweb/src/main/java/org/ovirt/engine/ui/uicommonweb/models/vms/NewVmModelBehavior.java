@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.ovirt.engine.core.common.businessentities.AutoPinningPolicy;
 import org.ovirt.engine.core.common.businessentities.Cluster;
 import org.ovirt.engine.core.common.businessentities.InstanceType;
 import org.ovirt.engine.core.common.businessentities.StoragePool;
@@ -353,12 +354,6 @@ public class NewVmModelBehavior extends VmModelBehaviorBase<UnitVmModel> {
     }
 
     @Override
-    public void enableSinglePCI(boolean enabled) {
-        super.enableSinglePCI(enabled);
-        getModel().setSingleQxlEnabled(enabled);
-    }
-
-    @Override
     protected void updateNumaEnabled() {
         super.updateNumaEnabled();
         updateNumaEnabledHelper();
@@ -408,5 +403,25 @@ public class NewVmModelBehavior extends VmModelBehaviorBase<UnitVmModel> {
         return oldTemplateToSelect != null
                 ? oldTemplateToSelect
                 : computeNewTemplateWithVersionToSelect(newItems, addLatest);
+    }
+
+    @Override
+    protected void updateAutoPinning() {
+        getModel().getAutoPinningPolicy().setSelectedItem(AutoPinningPolicy.NONE);
+        if (getModel().getIsAutoAssign().getEntity() == null) {
+            return;
+        }
+
+        if (!isAutoPinningPossible()) {
+            getModel().getAutoPinningPolicy().setIsChangeable(false);
+        } else {
+            getModel().getAutoPinningPolicy().setIsChangeable(true);
+        }
+    }
+
+    @Override
+    protected void updateBiosType() {
+        super.updateBiosType();
+        super.selectBiosTypeFromTemplate();
     }
 }

@@ -16,7 +16,9 @@ import java.util.Set;
 import org.ovirt.engine.core.common.businessentities.AdditionalFeature;
 import org.ovirt.engine.core.common.businessentities.ArchitectureType;
 import org.ovirt.engine.core.common.businessentities.BiosType;
+import org.ovirt.engine.core.common.businessentities.ChipsetType;
 import org.ovirt.engine.core.common.businessentities.Cluster;
+import org.ovirt.engine.core.common.businessentities.FipsMode;
 import org.ovirt.engine.core.common.businessentities.LogMaxMemoryUsedThresholdType;
 import org.ovirt.engine.core.common.businessentities.MacPool;
 import org.ovirt.engine.core.common.businessentities.MigrateOnErrorOptions;
@@ -42,6 +44,7 @@ import org.ovirt.engine.core.common.queries.QueryReturnValue;
 import org.ovirt.engine.core.common.queries.QueryType;
 import org.ovirt.engine.core.common.scheduling.ClusterPolicy;
 import org.ovirt.engine.core.common.scheduling.PolicyUnit;
+import org.ovirt.engine.core.common.utils.CpuUtils;
 import org.ovirt.engine.core.common.utils.Pair;
 import org.ovirt.engine.core.compat.Guid;
 import org.ovirt.engine.core.compat.StringHelper;
@@ -372,25 +375,23 @@ public class ClusterModel extends EntityModel<Cluster> implements HasValidatedTa
     public void setGlusterHostAddress(EntityModel<String> glusterHostAddress) {
         this.glusterHostAddress = glusterHostAddress;
     }
+    private EntityModel<String> glusterHostSshPublicKey;
 
-    private EntityModel<String> glusterHostFingerprint;
-
-    public EntityModel<String> getGlusterHostFingerprint() {
-        return glusterHostFingerprint;
+    public EntityModel<String> getGlusterHostSshPublicKey(){
+        return glusterHostSshPublicKey;
+    }
+    public void setGlusterHostSshPublicKey(EntityModel<String> glusterHostSshPublicKey){
+        this.glusterHostSshPublicKey = glusterHostSshPublicKey;
     }
 
-    public void setGlusterHostFingerprint(EntityModel<String> glusterHostFingerprint) {
-        this.glusterHostFingerprint = glusterHostFingerprint;
+    private Boolean hostSshPublicKeyVerified;
+
+    public Boolean isHostSshPublicKeyVerified() {
+        return hostSshPublicKeyVerified;
     }
 
-    private Boolean isFingerprintVerified;
-
-    public Boolean isFingerprintVerified() {
-        return isFingerprintVerified;
-    }
-
-    public void setIsFingerprintVerified(Boolean value) {
-        this.isFingerprintVerified = value;
+    public void setHostSshPublicKeyVerified(Boolean value) {
+        this.hostSshPublicKeyVerified = value;
     }
 
     private EntityModel<String> glusterHostPassword;
@@ -968,6 +969,26 @@ public class ClusterModel extends EntityModel<Cluster> implements HasValidatedTa
         this.biosType = biosType;
     }
 
+    private EntityModel<Boolean> changeToQ35;
+
+    public EntityModel<Boolean> getChangeToQ35() {
+        return changeToQ35;
+    }
+
+    public void setChangeToQ35(EntityModel<Boolean> changeToQ35) {
+        this.changeToQ35 = changeToQ35;
+    }
+
+    private ListModel<FipsMode> fipsMode;
+
+    public ListModel<FipsMode> getFipsMode() {
+        return fipsMode;
+    }
+
+    public void setFipsMode(ListModel<FipsMode> value) {
+        fipsMode = value;
+    }
+
     @Override
     public void setEntity(Cluster value) {
         super.setEntity(value);
@@ -1133,14 +1154,14 @@ public class ClusterModel extends EntityModel<Cluster> implements HasValidatedTa
                     && getEnableGlusterService().getEntity()) {
                 getIsImportGlusterConfiguration().setIsAvailable(true);
                 getGlusterHostAddress().setIsAvailable(true);
-                getGlusterHostFingerprint().setIsAvailable(true);
+                getGlusterHostSshPublicKey().setIsAvailable(true);
                 getGlusterHostPassword().setIsAvailable(true);
             } else {
                 getIsImportGlusterConfiguration().setIsAvailable(false);
                 getIsImportGlusterConfiguration().setEntity(false);
 
                 getGlusterHostAddress().setIsAvailable(false);
-                getGlusterHostFingerprint().setIsAvailable(false);
+                getGlusterHostSshPublicKey().setIsAvailable(false);
                 getGlusterHostPassword().setIsAvailable(false);
             }
             if (getEnableGlusterService().getEntity() != null
@@ -1339,7 +1360,12 @@ public class ClusterModel extends EntityModel<Cluster> implements HasValidatedTa
         getCPU().getSelectedItemChangedEvent().addListener(this);
 
         setBiosType(new ListModel<>());
+        setChangeToQ35(new EntityModel<>(false));
+        getBiosType().getSelectedItemChangedEvent().addListener(this);
         initBiosType();
+
+        setFipsMode(new ListModel<>());
+        initFipsMode();
 
         setVersion(new ListModel<>());
         getVersion().getSelectedItemChangedEvent().addListener(this);
@@ -1502,11 +1528,12 @@ public class ClusterModel extends EntityModel<Cluster> implements HasValidatedTa
     }
 
     public void initBiosType() {
-        boolean allowClusterDefault = getEntity() == null || BiosType.CLUSTER_DEFAULT == getEntity().getBiosType();
-        getBiosType().setItems(AsyncDataProvider.getInstance().getBiosTypeList());
-        if (!allowClusterDefault) {
-            getBiosType().getItems().remove(BiosType.CLUSTER_DEFAULT);
+        boolean allowClusterDefault = getEntity() == null || getEntity().getBiosType() == null;
+        ArrayList<BiosType> items = AsyncDataProvider.getInstance().getBiosTypeList();
+        if (allowClusterDefault) {
+            items.add(0, null);
         }
+        getBiosType().setItems(items);
         updateBiosType();
     }
 
@@ -1516,6 +1543,35 @@ public class ClusterModel extends EntityModel<Cluster> implements HasValidatedTa
         firewallType.setItems(Arrays.asList(FirewallType.values()));
         firewallType.setIsChangeable(true);
         firewallType.setSelectedItem(FirewallType.FIREWALLD);
+    }
+
+    private void initFipsMode() {
+        ListModel<FipsMode> fipsModes = getFipsMode();
+
+        fipsModes.setItems(Arrays.asList(FipsMode.values()));
+        fipsModes.setIsChangeable(true);
+        if (getEntity() != null) {
+            fipsModes.setSelectedItem(getEntity().getFipsMode());
+        } else {
+            fipsModes.setSelectedItem(FipsMode.UNDEFINED);
+        }
+    }
+
+    private void updateFipsMode(Version version) {
+        ListModel<FipsMode> fipsModes = getFipsMode();
+        if (AsyncDataProvider.getInstance().isFipsModeSupportedByVersion(version)) {
+            fipsModes.setIsAvailable(true);
+            fipsModes.setIsChangeable(true);
+            if (getEntity() != null) {
+                fipsModes.setSelectedItem(getEntity().getFipsMode());
+            } else {
+                fipsModes.setSelectedItem(FipsMode.UNDEFINED);
+            }
+        } else {
+            fipsModes.setSelectedItem(FipsMode.UNDEFINED);
+            fipsModes.setIsAvailable(false);
+            fipsModes.setIsChangeable(false);
+        }
     }
 
     private void initLogMaxMemoryUsedThresholdType() {
@@ -1545,7 +1601,7 @@ public class ClusterModel extends EntityModel<Cluster> implements HasValidatedTa
             getBiosType().updateChangeability(ConfigValues.BiosTypeSupported, getEffectiveVersion());
         }
         if (architecture == ArchitectureType.undefined || (!getBiosType().getIsChangable() && getBiosType().getSelectedItem() == null)) {
-            getBiosType().setSelectedItem(BiosType.CLUSTER_DEFAULT);
+            getBiosType().setSelectedItem(null);
             return;
         }
         if (getIsEdit() && architecture.equals(getEntity().getArchitecture())
@@ -1608,20 +1664,20 @@ public class ClusterModel extends EntityModel<Cluster> implements HasValidatedTa
     private void initImportCluster() {
         setGlusterHostAddress(new EntityModel<>());
         getGlusterHostAddress().getEntityChangedEvent().addListener((ev, sender, args) -> {
-            setIsFingerprintVerified(false);
+            setHostSshPublicKeyVerified(false);
             if (getGlusterHostAddress().getEntity() == null
                     || getGlusterHostAddress().getEntity().trim().length() == 0) {
-                getGlusterHostFingerprint().setEntity(""); //$NON-NLS-1$
+                getGlusterHostSshPublicKey().setEntity(""); //$NON-NLS-1$
                 return;
             }
-            fetchFingerprint(
+            fetchHostSshPublicKey(
                     getGlusterHostAddress().getEntity(),
                     VdsStatic.DEFAULT_SSH_PORT);
         });
 
-        setGlusterHostFingerprint(new EntityModel<>());
-        getGlusterHostFingerprint().setEntity(""); //$NON-NLS-1$
-        setIsFingerprintVerified(false);
+        setHostSshPublicKeyVerified(false);
+        setGlusterHostSshPublicKey(new EntityModel<>());
+        getGlusterHostSshPublicKey().setEntity(""); //$NON-NLS-1$
         setGlusterHostPassword(new EntityModel<>());
 
         setIsImportGlusterConfiguration(new EntityModel<>());
@@ -1638,25 +1694,26 @@ public class ClusterModel extends EntityModel<Cluster> implements HasValidatedTa
 
         getIsImportGlusterConfiguration().setIsAvailable(false);
         getGlusterHostAddress().setIsAvailable(false);
-        getGlusterHostFingerprint().setIsAvailable(false);
+        getGlusterHostSshPublicKey().setIsAvailable(false);
         getGlusterHostPassword().setIsAvailable(false);
 
         getIsImportGlusterConfiguration().setEntity(false);
     }
 
-    private void fetchFingerprint(String hostAddress, Integer hostPort) {
-        AsyncDataProvider.getInstance().getHostFingerprint(new AsyncQuery<>(fingerprint -> {
-            if (fingerprint != null && fingerprint.length() > 0) {
-                getGlusterHostFingerprint().setEntity(fingerprint);
-                setIsFingerprintVerified(true);
+    private void fetchHostSshPublicKey(String hostAddress, Integer hostPort) {
+        AsyncDataProvider.getInstance().getHostSshPublicKey(new AsyncQuery<>(publicKey -> {
+            if (publicKey != null && publicKey.length() > 0) {
+                getGlusterHostSshPublicKey().setEntity(publicKey);
+                setHostSshPublicKeyVerified(true);
             } else {
-                getGlusterHostFingerprint().setEntity(ConstantsManager.getInstance()
+                getGlusterHostSshPublicKey().setEntity(ConstantsManager.getInstance()
                         .getConstants()
-                        .errorLoadingFingerprint());
-                setIsFingerprintVerified(false);
+                        .errorLoadingHostSshPublicKey());
+                setHostSshPublicKeyVerified(false);
             }
         }), hostAddress, hostPort);
-        getGlusterHostFingerprint().setEntity(ConstantsManager.getInstance().getConstants().loadingFingerprint());
+
+        getGlusterHostSshPublicKey().setEntity(ConstantsManager.getInstance().getConstants().loadingPublicKey());
     }
 
     private void postInit() {
@@ -1821,8 +1878,10 @@ public class ClusterModel extends EntityModel<Cluster> implements HasValidatedTa
             architectureSelectedItemChanged();
         } else if (sender == getMacPoolListModel()) {
             getMacPoolModel().setEntity(getMacPoolListModel().getSelectedItem());
-        }  else if (sender == getMigrationPolicies()) {
+        } else if (sender == getMigrationPolicies()) {
             migrationPoliciesChanged();
+        } else if (sender == getBiosType()) {
+            updateChangeToQ35();
         }
     }
 
@@ -1903,6 +1962,8 @@ public class ClusterModel extends EntityModel<Cluster> implements HasValidatedTa
         refreshMigrationPolicies();
 
         updateMigrateEncrypted(version);
+
+        updateFipsMode(version);
 
         refreshAdditionalClusterFeaturesList();
 
@@ -2087,8 +2148,11 @@ public class ClusterModel extends EntityModel<Cluster> implements HasValidatedTa
             }
 
             AsyncDataProvider.getInstance().getCpuByFlags(new AsyncQuery<>(cpu -> {
-                getCPU().setSelectedItem(cpu != null ?
-                        Linq.firstOrNull(getCPU().getItems(), new Linq.ServerCpuPredicate(cpu.getCpuName())) : null);
+                String cpuName = cpu != null ? cpu.getCpuName() : CpuUtils.getCpuNameInVersion(oldSelectedCpu, getEffectiveVersion());
+
+                getCPU().setSelectedItem(cpuName != null ?
+                        Linq.firstOrNull(getCPU().getItems(), new Linq.ServerCpuPredicate(cpuName)) : null);
+
             }), flags, getEffectiveVersion());
         }
     }
@@ -2228,6 +2292,15 @@ public class ClusterModel extends EntityModel<Cluster> implements HasValidatedTa
         }
     }
 
+
+    private void updateChangeToQ35() {
+        getChangeToQ35().setIsChangeable(getIsEdit() && getBiosType().getSelectedItem() != null
+                && getBiosType().getSelectedItem().getChipsetType() == ChipsetType.Q35);
+        if (!getChangeToQ35().getIsChangable()) {
+            getChangeToQ35().setEntity(false);
+        }
+    }
+
     public boolean validate() {
         validateName();
 
@@ -2256,8 +2329,8 @@ public class ClusterModel extends EntityModel<Cluster> implements HasValidatedTa
             setMessage(ConstantsManager.getInstance().getConstants().clusterServiceValidationMsg());
         } else if (getIsImportGlusterConfiguration().getEntity() && getGlusterHostAddress().getIsValid()
                 && getGlusterHostPassword().getIsValid()
-                && !isFingerprintVerified()) {
-            setMessage(ConstantsManager.getInstance().getConstants().fingerprintNotVerified());
+                && !isHostSshPublicKeyVerified()) {
+            setMessage(ConstantsManager.getInstance().getConstants().sshPublicKeyNotVerified());
         } else {
             setMessage(null);
         }
@@ -2285,7 +2358,7 @@ public class ClusterModel extends EntityModel<Cluster> implements HasValidatedTa
                 && (!getIsImportGlusterConfiguration().getEntity() || (getGlusterHostAddress().getIsValid()
                 && getGlusterHostPassword().getIsValid()
                 && getCustomSerialNumber().getIsValid()
-                && isFingerprintVerified()));
+                && isHostSshPublicKeyVerified()));
         setValidTab(TabName.GENERAL_TAB, generalTabValid);
 
         if (getVersion().getSelectedItem() != null) {

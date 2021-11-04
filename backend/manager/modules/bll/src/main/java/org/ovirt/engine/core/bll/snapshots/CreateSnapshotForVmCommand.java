@@ -305,7 +305,8 @@ public class CreateSnapshotForVmCommand<T extends CreateSnapshotForVmParameters>
                 && (!getParameters().isSaveMemory() || validate(vmValidator.vmNotHavingPciPassthroughDevices()))
                 && (!getParameters().isSaveMemory() || validate(vmValidator.vmNotHavingScsiPassthroughDevices()))
                 && (!getParameters().isSaveMemory() || validate(vmValidator.vmNotHavingNvdimmDevices()))
-                && validate(vmValidator.vmNotUsingMdevTypeHook()))) {
+                && (!getParameters().isSaveMemory() || validate(vmValidator.vmNotHavingTpm()))
+                && (!getParameters().isSaveMemory() || validate(vmValidator.vmNotUsingMdevTypeHook())))) {
             return false;
         }
 
@@ -402,7 +403,7 @@ public class CreateSnapshotForVmCommand<T extends CreateSnapshotForVmParameters>
         params.setParentParameters(getParameters());
         params.setEndProcedure(ActionParametersBase.EndProcedure.COMMAND_MANAGED);
         params.setShouldFreezeOrThaw(shouldFreezeOrThaw);
-        if (!FeatureSupported.isAsyncLiveSnapshotSupported(getVm().getClusterCompatibilityVersion())) {
+        if (!FeatureSupported.isAsyncLiveSnapshotSupported(getVm().getClusterCompatibilityVersion(), getVds())) {
             params.setLegacyFlow(true);
         }
         params.setCachedSelectedActiveDisks(cachedSelectedActiveDisks);
@@ -658,7 +659,7 @@ public class CreateSnapshotForVmCommand<T extends CreateSnapshotForVmParameters>
             return false; // irrelevant for snapshot taken as part of live storage migration
         }
 
-        if (Config.<Boolean>getValue(ConfigValues.LiveSnapshotPerformFreezeInEngine)) {
+        if (FeatureSupported.isFreezeInEngineEnabled(getVm().getClusterCompatibilityVersion())) {
             return true;
         }
 

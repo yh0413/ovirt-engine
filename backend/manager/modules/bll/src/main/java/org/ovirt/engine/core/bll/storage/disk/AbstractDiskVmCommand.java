@@ -5,11 +5,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.locks.Lock;
 
 import javax.inject.Inject;
 
 import org.apache.commons.lang.StringUtils;
-import org.ovirt.engine.core.bll.LockMessagesMatchUtil;
 import org.ovirt.engine.core.bll.ValidationResult;
 import org.ovirt.engine.core.bll.VmCommand;
 import org.ovirt.engine.core.bll.context.CommandContext;
@@ -41,17 +41,16 @@ import org.ovirt.engine.core.common.businessentities.storage.VolumeFormat;
 import org.ovirt.engine.core.common.errors.EngineError;
 import org.ovirt.engine.core.common.errors.EngineException;
 import org.ovirt.engine.core.common.errors.EngineMessage;
-import org.ovirt.engine.core.common.locks.LockingGroup;
+import org.ovirt.engine.core.common.utils.NullableLock;
 import org.ovirt.engine.core.common.vdscommands.HotPlugDiskVDSParameters;
 import org.ovirt.engine.core.common.vdscommands.VDSCommandType;
 import org.ovirt.engine.core.compat.Guid;
 import org.ovirt.engine.core.dao.DiskVmElementDao;
 import org.ovirt.engine.core.dao.StorageServerConnectionDao;
-import org.ovirt.engine.core.dao.VmDeviceDao;
 import org.ovirt.engine.core.dao.network.VmNicDao;
 import org.ovirt.engine.core.utils.StringMapUtils;
 import org.ovirt.engine.core.utils.archstrategy.ArchStrategyFactory;
-import org.ovirt.engine.core.utils.lock.EngineLock;
+import org.ovirt.engine.core.vdsbroker.ResourceManager;
 import org.ovirt.engine.core.vdsbroker.architecture.GetControllerIndices;
 import org.ovirt.engine.core.vdsbroker.builder.vminfo.VmInfoBuildUtils;
 import org.ovirt.engine.core.vdsbroker.libvirt.DomainXmlUtils;
@@ -70,11 +69,11 @@ public abstract class AbstractDiskVmCommand<T extends VmDiskOperationParameterBa
     @Inject
     private DiskVmElementDao diskVmElementDao;
     @Inject
-    private VmDeviceDao vmDeviceDao;
-    @Inject
     private ManagedBlockStorageCommandUtil managedBlockStorageCommandUtil;
     @Inject
     private StorageHelperDirector storageHelperDirector;
+    @Inject
+    private ResourceManager resourceManager;
 
     protected AbstractDiskVmCommand(Guid commandId) {
         super(commandId);
@@ -84,9 +83,16 @@ public abstract class AbstractDiskVmCommand<T extends VmDiskOperationParameterBa
         super(parameters, commandContext);
     }
 
-    protected void performPlugCommand(VDSCommandType commandType,
+    /**
+     * @param commandType HotPlugDisk/HotUnPlugDisk
+     * @param disk the disk to hot-plug or hot-unplug
+     * @param vmDevice the disk's device
+     * @return true if the device address has changed, false otherwise
+     */
+    protected boolean performPlugCommand(VDSCommandType commandType,
             Disk disk,
             VmDevice vmDevice) {
+        boolean addressChanged = false;
         switch (disk.getDiskStorageType()) {
         case LUN:
             LunDisk lunDisk = (LunDisk) disk;
@@ -123,10 +129,7 @@ public abstract class AbstractDiskVmCommand<T extends VmDiskOperationParameterBa
         }
 
         if (commandType == VDSCommandType.HotPlugDisk) {
-            var address = getDiskAddress(vmDevice.getAddress(), getDiskVmElement().getDiskInterface());
-            // Updating device's address immediately (instead of waiting to VmsMonitoring)
-            // to prevent a duplicate unit value (i.e. ensuring a unique unit value).
-            updateVmDeviceAddress(address, vmDevice);
+            addressChanged = updateDeviceAddress(vmDevice);
         }
 
         disk.setDiskVmElements(Collections.singleton(getDiskVmElement()));
@@ -137,6 +140,7 @@ public abstract class AbstractDiskVmCommand<T extends VmDiskOperationParameterBa
                         vmDevice,
                         getDiskVmElement().getDiskInterface(),
                         getDiskVmElement().isPassDiscard()));
+        return addressChanged;
     }
 
     private IStorageHelper getStorageHelper(StorageType storageType) {
@@ -170,16 +174,11 @@ public abstract class AbstractDiskVmCommand<T extends VmDiskOperationParameterBa
                 diskVmElements,
                 isVirtioScsiControllerAttached(getVmId()),
                 hasWatchdog(getVmId()),
-                isBalloonEnabled(getVmId()),
                 isSoundDeviceEnabled(getVmId())));
     }
 
     protected boolean isVirtioScsiControllerAttached(Guid vmId) {
         return getVmDeviceUtils().hasVirtioScsiController(vmId);
-    }
-
-    protected boolean isBalloonEnabled(Guid vmId) {
-        return getVmDeviceUtils().hasMemoryBalloon(vmId);
     }
 
     protected boolean isSoundDeviceEnabled(Guid vmId) {
@@ -270,46 +269,45 @@ public abstract class AbstractDiskVmCommand<T extends VmDiskOperationParameterBa
         return cinderBroker;
     }
 
-    /**
-     * Returns a possibly new PCI address allocated for a disk that is set the specified address and interface
-     *
-     * @return an address allocated to the given disk
-     */
-    public String getDiskAddress(final String currentAddress, DiskInterface diskInterface) {
+    private boolean updateDeviceAddress(VmDevice vmDevice) {
+        DiskInterface diskInterface = getDiskVmElement().getDiskInterface();
         switch (diskInterface) {
         case VirtIO_SCSI:
         case SPAPR_VSCSI:
-            int controllerIndex = ArchStrategyFactory.getStrategy(getVm().getClusterArch())
-                    .run(new GetControllerIndices())
-                    .returnValue()
-                    .get(diskInterface);
-            try (EngineLock vmDiskHotPlugEngineLock = lockVmDiskHotPlugWithWait()) {
-                switch (diskInterface) {
-                case VirtIO_SCSI:
-                    var vmDeviceUnitMap = vmInfoBuildUtils.getVmDeviceUnitMapForVirtioScsiDisks(getVm());
-                    var vmDeviceUnitMapForController =
-                            vmDeviceUnitMapForController(currentAddress, vmDeviceUnitMap, diskInterface);
-                    var addressMap = getAddressMapForScsiDisk(currentAddress,
-                            vmDeviceUnitMapForController,
-                            controllerIndex,
-                            false,
-                            false);
-                    return addressMap.toString();
-                case SPAPR_VSCSI:
-                    vmDeviceUnitMap = vmInfoBuildUtils.getVmDeviceUnitMapForSpaprScsiDisks(getVm());
-                    vmDeviceUnitMapForController =
-                            vmDeviceUnitMapForController(currentAddress, vmDeviceUnitMap, diskInterface);
-                    addressMap = getAddressMapForScsiDisk(currentAddress,
-                            vmDeviceUnitMapForController,
-                            controllerIndex,
-                            true,
-                            true);
-                    return addressMap.toString();
-                }
-            }
+            String address = getScsiDiskAddress(vmDevice.getAddress(), diskInterface);
+            boolean addressChanged = !Objects.equals(vmDevice.getAddress(), address);
+            vmDevice.setAddress(address);
+            return addressChanged;
         default:
-            return currentAddress;
+            return false;
         }
+    }
+
+    /**
+     * Returns a possibly new PCI address allocated for a disk that is set with the specified address and interface
+     *
+     * @return an address allocated to the given disk
+     */
+    private String getScsiDiskAddress(String currentAddress, DiskInterface diskInterface) {
+        int controllerIndex = ArchStrategyFactory.getStrategy(getVm().getClusterArch())
+                .run(new GetControllerIndices())
+                .returnValue()
+                .get(diskInterface);
+        var vmDeviceUnitMap = getVmDeviceUnitMapForScsiDisks(diskInterface);
+        Map<VmDevice, Integer> vmDeviceUnitMapForController =
+                vmDeviceUnitMapForController(currentAddress, vmDeviceUnitMap, diskInterface);
+        Map<String, String> addressMap = getAddressMapForScsiDisk(currentAddress,
+                vmDeviceUnitMapForController,
+                controllerIndex,
+                diskInterface == DiskInterface.SPAPR_VSCSI,
+                diskInterface == DiskInterface.SPAPR_VSCSI);
+        return addressMap.toString();
+    }
+
+    private Map<Integer, Map<VmDevice, Integer>> getVmDeviceUnitMapForScsiDisks(DiskInterface diskInterface) {
+        return diskInterface == DiskInterface.VirtIO_SCSI
+                ? vmInfoBuildUtils.getVmDeviceUnitMapForVirtioScsiDisks(getVm())
+                : vmInfoBuildUtils.getVmDeviceUnitMapForSpaprScsiDisks(getVm());
     }
 
     private Map<VmDevice, Integer> vmDeviceUnitMapForController(String address,
@@ -348,25 +346,6 @@ public abstract class AbstractDiskVmCommand<T extends VmDiskOperationParameterBa
         }
     }
 
-    protected void updateVmDeviceAddress(final String address, final VmDevice vmDevice) {
-        if (vmDevice.getAddress().equals(address)) {
-            return;
-        }
-        vmDevice.setAddress(address);
-        getCompensationContext().snapshotEntity(vmDevice);
-        getCompensationContext().stateChanged();
-        vmDeviceDao.update(vmDevice);
-    }
-
-    protected EngineLock lockVmDiskHotPlugWithWait() {
-        EngineLock vmDiskHotPlugEngineLock = new EngineLock();
-        vmDiskHotPlugEngineLock.setExclusiveLocks(Collections.singletonMap(getVmId().toString(),
-                LockMessagesMatchUtil.makeLockingPair(LockingGroup.VM_DISK_HOT_PLUG,
-                        EngineMessage.ACTION_TYPE_FAILED_OBJECT_LOCKED)));
-        lockManager.acquireLockWait(vmDiskHotPlugEngineLock);
-        return vmDiskHotPlugEngineLock;
-    }
-
     @Override
     protected boolean shouldUpdateHostedEngineOvf() {
         return true;
@@ -374,5 +353,13 @@ public abstract class AbstractDiskVmCommand<T extends VmDiskOperationParameterBa
 
     protected String getDeviceAliasForDisk(Disk disk) {
         return String.format("%s%s", DomainXmlUtils.USER_ALIAS_PREFIX, disk.getId());
+    }
+
+    protected Lock getVmDevicesLock(boolean runningVmChanges) {
+        if (runningVmChanges) {
+            log.debug("locking vm devices monitoring for {}", getVmId());
+            return resourceManager.getVmManager(getVmId()).getVmDevicesLock();
+        }
+        return new NullableLock();
     }
 }

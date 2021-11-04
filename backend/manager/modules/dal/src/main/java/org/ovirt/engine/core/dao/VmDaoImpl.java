@@ -4,7 +4,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.inject.Named;
@@ -177,13 +176,11 @@ public class VmDaoImpl extends BaseDao implements VmDao {
     }
 
     @Override
-    public Map<Guid, VM> getAllRunningByVds(Guid id) {
-        List<VM> vms = getCallsHandler().executeReadList("GetVmsRunningByVds",
+    public List<VM> getMonitoredVmsRunningByVds(Guid id) {
+        return getCallsHandler().executeReadList("GetVmsRunningByVds",
                  vmMonitoringRowMapper,
                  getCustomMapSqlParameterSource()
                         .addValue("vds_id", id));
-        return vms.stream()
-                .collect(Collectors.toMap(VM::getId, Function.identity()));
     }
 
     @Override
@@ -381,6 +378,8 @@ public class VmDaoImpl extends BaseDao implements VmDao {
         entity.setNumOfSockets(rs.getInt("num_of_sockets"));
         entity.setCpuPerSocket(rs.getInt("cpu_per_socket"));
         entity.setThreadsPerCpu(rs.getInt("threads_per_cpu"));
+        entity.setPriority(rs.getInt("priority"));
+        entity.setLeaseStorageDomainId(getGuid(rs, "lease_sd_id"));
         entity.setDynamicData(VmDynamicDaoImpl.getRowMapper().mapRow(rs, rowNum));
 
         return entity;
@@ -406,5 +405,74 @@ public class VmDaoImpl extends BaseDao implements VmDao {
         return getCallsHandler().executeReadList("GetActiveVmNamesWithIsoAttached",
                 SingleColumnRowMapper.newInstance(String.class),
                 getCustomMapSqlParameterSource().addValue("iso_disk_id", isoDiskId));
+    }
+
+    private Pair<String, String> getExternalData(Guid vmId, String functionName) {
+        List<Pair<String, String>> resultRows = getCallsHandler().executeReadList(functionName,
+                (rs, i) -> new Pair<>(new String(rs.getString("data")), rs.getString("hash")),
+                getCustomMapSqlParameterSource().addValue("vm_id", vmId));
+        if (resultRows.isEmpty()) {
+            return new Pair<String, String>();
+        } else {
+            return resultRows.get(0);
+        }
+    }
+
+    @Override
+    public Pair<String, String> getTpmData(Guid vmId) {
+        return getExternalData(vmId, "GetTpmData");
+    }
+
+    @Override
+    public void updateTpmData(Guid vmId, String tpmData, String tpmDataHash) {
+        getCallsHandler().executeModification("UpdateTpmData",
+                getCustomMapSqlParameterSource()
+                        .addValue("vm_id", vmId)
+                        .addValue("tpm_data", tpmData)
+                        .addValue("tpm_hash", tpmDataHash));
+    }
+
+    @Override
+    public void deleteTpmData(Guid vmId) {
+        getCallsHandler().executeModification("DeleteTpmData",
+                getCustomMapSqlParameterSource()
+                        .addValue("vm_id", vmId));
+    }
+
+    @Override
+    public void copyTpmData(Guid sourceVmId, Guid targetVmId) {
+        getCallsHandler().executeModification("CopyTpmData",
+                getCustomMapSqlParameterSource()
+                        .addValue("source_vm_id", sourceVmId)
+                        .addValue("target_vm_id", targetVmId));
+    }
+
+    @Override
+    public Pair<String, String> getNvramData(Guid vmId) {
+        return getExternalData(vmId, "GetNvramData");
+    }
+
+    @Override
+    public void updateNvramData(Guid vmId, String nvramData, String nvramDataHash) {
+        getCallsHandler().executeModification("UpdateNvramData",
+                getCustomMapSqlParameterSource()
+                        .addValue("vm_id", vmId)
+                        .addValue("nvram_data", nvramData)
+                        .addValue("nvram_hash", nvramDataHash));
+    }
+
+    @Override
+    public void deleteNvramData(Guid vmId) {
+        getCallsHandler().executeModification("DeleteNvramData",
+                getCustomMapSqlParameterSource()
+                        .addValue("vm_id", vmId));
+    }
+
+    @Override
+    public void copyNvramData(Guid sourceVmId, Guid targetVmId) {
+        getCallsHandler().executeModification("CopyNvramData",
+                getCustomMapSqlParameterSource()
+                        .addValue("source_vm_id", sourceVmId)
+                        .addValue("target_vm_id", targetVmId));
     }
 }

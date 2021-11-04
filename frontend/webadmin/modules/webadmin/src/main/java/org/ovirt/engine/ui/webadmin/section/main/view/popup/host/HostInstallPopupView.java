@@ -9,6 +9,7 @@ import org.ovirt.engine.ui.common.editor.UiCommonEditorDriver;
 import org.ovirt.engine.ui.common.idhandler.WithElementId;
 import org.ovirt.engine.ui.common.view.popup.AbstractModelBoundPopupView;
 import org.ovirt.engine.ui.common.widget.Align;
+import org.ovirt.engine.ui.common.widget.dialog.InfoIcon;
 import org.ovirt.engine.ui.common.widget.dialog.SimpleDialogPanel;
 import org.ovirt.engine.ui.common.widget.dialog.tab.DialogTab;
 import org.ovirt.engine.ui.common.widget.dialog.tab.DialogTabPanel;
@@ -22,6 +23,7 @@ import org.ovirt.engine.ui.common.widget.renderer.EnumRenderer;
 import org.ovirt.engine.ui.common.widget.renderer.NullSafeRenderer;
 import org.ovirt.engine.ui.uicommonweb.models.hosts.InstallModel;
 import org.ovirt.engine.ui.webadmin.ApplicationConstants;
+import org.ovirt.engine.ui.webadmin.ApplicationTemplates;
 import org.ovirt.engine.ui.webadmin.gin.AssetProvider;
 import org.ovirt.engine.ui.webadmin.section.main.presenter.popup.host.HostInstallPopupPresenterWidget;
 
@@ -81,6 +83,15 @@ public class HostInstallPopupView extends AbstractModelBoundPopupView<InstallMod
     @WithElementId("activateHostAfterInstall")
     EntityModelCheckBoxEditor activateHostAfterInstallEditor;
 
+    @UiField(provided = true)
+    @Ignore
+    InfoIcon hostRebootInfoIcon;
+
+    @UiField(provided = true)
+    @Path(value = "rebootHostAfterInstall.entity")
+    @WithElementId("rebootHostAfterInstall")
+    EntityModelCheckBoxEditor rebootHostAfterInstallEditor;
+
     @UiField
     @Ignore
     Label authLabel;
@@ -137,11 +148,13 @@ public class HostInstallPopupView extends AbstractModelBoundPopupView<InstallMod
     private final Driver driver = GWT.create(Driver.class);
 
     private static final ApplicationConstants constants = AssetProvider.getConstants();
+    private static final ApplicationTemplates templates = AssetProvider.getTemplates();
 
     @Inject
     public HostInstallPopupView(EventBus eventBus) {
         super(eventBus);
         initEditors();
+        initInfoIcon();
         initWidget(ViewUiBinder.uiBinder.createAndBindUi(this));
         hideLabels();
         localize();
@@ -152,6 +165,11 @@ public class HostInstallPopupView extends AbstractModelBoundPopupView<InstallMod
     private void hideLabels() {
         passwordEditor.hideLabel();
         publicKeyEditor.hideLabel();
+    }
+
+    private void initInfoIcon() {
+        hostRebootInfoIcon =
+                new InfoIcon(templates.italicText(constants.rebootHostAfterInstallLabelHelpMessage()));
     }
 
     void initEditors() {
@@ -167,6 +185,7 @@ public class HostInstallPopupView extends AbstractModelBoundPopupView<InstallMod
         rbPublicKey = new RadioButton("1"); //$NON-NLS-1$
         publicKeyEditor = new StringEntityModelTextAreaLabelEditor();
         activateHostAfterInstallEditor = new EntityModelCheckBoxEditor(Align.RIGHT);
+        rebootHostAfterInstallEditor = new EntityModelCheckBoxEditor(Align.RIGHT);
         overrideIpTablesEditor = new EntityModelCheckBoxEditor(Align.RIGHT);
         reconfigureGlusterEditor = new EntityModelCheckBoxEditor(Align.RIGHT);
         replaceHostEditor = new ListModelListBoxEditor<>(new EnumRenderer<ReplaceHostConfiguration.Action>());
@@ -177,6 +196,7 @@ public class HostInstallPopupView extends AbstractModelBoundPopupView<InstallMod
         isoEditor.setLabel(constants.hostInstallIsoLabel());
         overrideIpTablesEditor.setLabel(constants.hostInstallOverrideIpTablesLabel());
         activateHostAfterInstallEditor.setLabel(constants.activateHostAfterInstallLabel());
+        rebootHostAfterInstallEditor.setLabel(constants.rebootHostAfterInstallLabel());
         reconfigureGlusterEditor.setLabel(constants.reconfigureGlusterLabel());
         authLabel.setText(constants.hostPopupAuthLabel());
         userNameEditor.setLabel(constants.hostPopupUsernameLabel());

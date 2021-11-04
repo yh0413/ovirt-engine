@@ -6,12 +6,15 @@ import java.util.List;
 import java.util.Optional;
 
 import org.ovirt.engine.core.common.businessentities.NumaNode;
+import org.ovirt.engine.core.common.businessentities.NumaTuneMode;
 import org.ovirt.engine.core.common.businessentities.VmNumaNode;
 
 public class NumaUtils {
 
-    public static void setNumaListConfiguration(List<VmNumaNode> nodeList, long memTotal, Optional<Integer> hugepages, int coreCount) {
-        // Sorting is needed, otherwise the list will be ordered by nodeId,
+    public static void setNumaListConfiguration(List<VmNumaNode> nodeList, long memTotal, Optional<Integer> hugepages,
+            int coreCount) {
+
+     // Sorting is needed, otherwise the list will be ordered by nodeId,
         // as it was returned by DB. It can assign wrong CPU IDs to nodes.
         nodeList.sort(Comparator.comparing(NumaNode::getIndex));
         int nodeCount = nodeList.size();
@@ -43,6 +46,16 @@ public class NumaUtils {
                 coreList.add(nextCpuId);
             }
             vmNumaNode.setCpuIds(coreList);
+        }
+    }
+
+    public static void setNumaListConfiguration(List<VmNumaNode> nodeList, long memTotal, Optional<Integer> hugepages,
+            int coreCount, NumaTuneMode numaTuneMode) {
+
+        setNumaListConfiguration(nodeList, memTotal, hugepages, coreCount);
+        for (VmNumaNode vmNumaNode : nodeList) {
+            // Update tune mode
+            vmNumaNode.setNumaTuneMode(numaTuneMode);
         }
     }
 }

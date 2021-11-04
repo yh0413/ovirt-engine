@@ -81,6 +81,7 @@ CREATE OR REPLACE FUNCTION UpdateImageUploads(
     v_bytes_sent BIGINT,
     v_bytes_total BIGINT,
     v_client_inactivity_timeout INTEGER,
+    v_timeout_policy VARCHAR(10),
     v_image_format INTEGER,
     v_backend INTEGER,
     v_backup_id UUID,
@@ -106,6 +107,7 @@ BEGIN
         bytes_sent = v_bytes_sent,
         bytes_total = v_bytes_total,
         client_inactivity_timeout = v_client_inactivity_timeout,
+        timeout_policy = v_timeout_policy,
         image_format = v_image_format,
         backend = v_backend,
         backup_id = v_backup_id,
@@ -143,6 +145,7 @@ CREATE OR REPLACE FUNCTION InsertImageUploads(
     v_bytes_sent BIGINT,
     v_bytes_total BIGINT,
     v_client_inactivity_timeout INTEGER,
+    v_timeout_policy VARCHAR(10),
     v_image_format INTEGER,
     v_backend INTEGER,
     v_backup_id UUID,
@@ -168,6 +171,7 @@ BEGIN
         bytes_sent,
         bytes_total,
         client_inactivity_timeout,
+        timeout_policy,
         image_format,
         backend,
         backup_id,
@@ -190,6 +194,7 @@ BEGIN
         v_bytes_sent,
         v_bytes_total,
         v_client_inactivity_timeout,
+        v_timeout_policy,
         v_image_format,
         v_backend,
         v_backup_id,
@@ -199,3 +204,27 @@ BEGIN
 END;$PROCEDURE$
 LANGUAGE plpgsql;
 
+
+-----------------------------------------------------------
+-- Cleanup image transfer entities by last updated time and phase
+-----------------------------------------------------------
+CREATE OR REPLACE FUNCTION DeleteCompletedImageTransfersOlderThanDate (
+    v_succeeded_end_time TIMESTAMP WITH TIME ZONE,
+    v_failed_end_time TIMESTAMP WITH TIME ZONE
+    )
+RETURNS VOID AS $PROCEDURE$
+BEGIN
+    DELETE
+    FROM image_transfers
+    WHERE (
+            (
+                last_updated < v_succeeded_end_time
+                AND phase = 9
+                )
+            OR (
+                last_updated < v_failed_end_time
+                AND phase = 10
+                )
+            );
+END;$PROCEDURE$
+LANGUAGE plpgsql;

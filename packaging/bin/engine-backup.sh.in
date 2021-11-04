@@ -168,8 +168,7 @@ BACKUP_PATHS="/etc/ovirt-engine
 /etc/firewalld/services/ovirt-provider-ovn.xml
 /etc/firewalld/services/ovn-central-firewall-service.xml
 /var/lib/openvswitch
-/etc/grafana
-/var/lib/grafana"
+/etc/grafana"
 
 # Add /var/lib/ovirt-engine except a few
 VAR_LIB_OVIRT_ENGINE_EXCLUSIONS="/var/lib/ovirt-engine/backups
@@ -997,6 +996,11 @@ getOSVersion() {
 	python@PY_VERSION@ -c 'import platform; d = platform.linux_distribution(full_distribution_name=0); print("%s%s" % (d[0], d[1].split(".")[0]))'
 }
 
+looseVersion_le() {
+	# return 0 if first arg is <= second arg
+	python@PY_VERSION@ -c 'import sys; from distutils.version import LooseVersion; sys.exit(0 if LooseVersion(sys.argv[1]) <= LooseVersion(sys.argv[2]) else 1)' "$1" "$2"
+}
+
 createtar() {
 	local dir="$1"
 	local file="$2"
@@ -1095,7 +1099,11 @@ backupSQLiteDB() {
 	local backup_file="$1"
 	local db_file="$2"
 
-	sqlite3 "${db_file}" ".backup ${backup_file}" 2>> "${LOG}" || logdie "failed to backup ${db_file} with sqlite3"
+	# Backup with sqlite, attempt to lock for up to 10 seconds
+	sqlite3 "${db_file}" << __EOF__ 2>> "${LOG}" || logdie "failed to backup ${db_file} with sqlite3"
+.timeout 10000
+.backup ${backup_file}
+__EOF__
 	chown --reference="${db_file}" "${backup_file}" 2>> "${LOG}" || logdie "chown failed"
 	chmod --reference="${db_file}" "${backup_file}" 2>> "${LOG}" || logdie "chmod failed"
 }
@@ -1145,6 +1153,11 @@ dorestore() {
 	[ -s "${TEMP_FOLDER}/db/${DWHDB_BACKUP_FILE_NAME}" ] || SCOPE_DWH_DB=
 	[ -s "${TEMP_FOLDER}/db/${CINDERLIBDB_BACKUP_FILE_NAME}" ] || SCOPE_CINDERLIB_DB=
 	[ -s "${TEMP_FOLDER}/db/${GRAFANA_BACKUP_FILE_NAME}" ] || SCOPE_GRAFANA_DB=
+
+	log 'Scope after checking backup content:'
+	for v in SCOPE_FILES SCOPE_ENGINE_DB SCOPE_DWH_DB SCOPE_CINDERLIB_DB SCOPE_GRAFANA_DB; do
+		log "$v:${!v}"
+	done
 
 	if [ -n "${PROVISION_ALL_DBS}" ]; then
 		[ -n "${SCOPE_ENGINE_DB}" ] && PROVISION_DB=1
@@ -1277,7 +1290,7 @@ verifyVersion() {
 	done << __EOF__
 ${VALID_BACKUP_RESTORE_PAIRS}
 __EOF__
-	[ "${INSTALLED_VERSION_X_Y}" == "${BACKUP_VERSION_X_Y}" ] && ok=1
+	[ "${INSTALLED_VERSION_X_Y}" == "${BACKUP_VERSION_X_Y}" ] && looseVersion_le "${BACKUP_VERSION}" "${INSTALLED_VERSION}" && ok=1
 	if [ "${BACKUP_VERSION_X_Y}" = "4.3" ]; then
 		# Prevent upgrading from < 4.3.10.
 		# We already document to upgrade first to latest 4.3, before upgrading to 4.4.

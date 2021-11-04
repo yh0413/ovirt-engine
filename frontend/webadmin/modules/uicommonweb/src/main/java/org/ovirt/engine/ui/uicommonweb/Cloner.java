@@ -159,9 +159,8 @@ public final class Cloner {
         vm.setVmDescription(instance.getVmDescription());
         vm.setComment(instance.getComment());
         vm.setCustomEmulatedMachine(instance.getCustomEmulatedMachine());
-        vm.setCustomBiosType(instance.getCustomBiosType());
+        vm.setBiosType(instance.getBiosType());
         vm.setClusterBiosType(instance.getClusterBiosType());
-        vm.setClusterBiosTypeOrigin(instance.getClusterBiosTypeOrigin());
         vm.setCustomCpuName(instance.getCustomCpuName());
         vm.setCustomCompatibilityVersion(instance.getCustomCompatibilityVersion());
         vm.setId(instance.getId());
@@ -197,7 +196,6 @@ public final class Cloner {
         vm.setPredefinedProperties(instance.getPredefinedProperties());
         vm.setUserDefinedProperties(instance.getUserDefinedProperties());
         vm.setCustomProperties(instance.getCustomProperties());
-        vm.setSingleQxlPci(instance.getSingleQxlPci());
         vm.setMinAllocatedMem(instance.getMinAllocatedMem());
         vm.setGuestOsArch(instance.getGuestOsArch());
         vm.setGuestOsCodename(instance.getGuestOsCodename());
@@ -214,6 +212,9 @@ public final class Cloner {
         vm.setRuntimeDeviceCustomProperties(instance.getRuntimeDeviceCustomProperties());
         vm.setLeaseStorageDomainId(instance.getLeaseStorageDomainId());
         vm.setVmInit(instance.getVmInit());
+        vm.setSmallIconId(instance.getSmallIconId());
+        vm.setLargeIconId(instance.getLargeIconId());
+        vm.setVirtioScsiMultiQueuesEnabled(instance.isVirtioScsiMultiQueuesEnabled());
         return vm;
     }
 
@@ -328,6 +329,7 @@ public final class Cloner {
         obj.setAutoConverge(instance.getAutoConverge());
         obj.setMigrateCompressed(instance.getMigrateCompressed());
         obj.setMigrateEncrypted(instance.getMigrateEncrypted());
+        obj.setFipsMode(instance.getFipsMode());
         return obj;
     }
 
@@ -444,7 +446,7 @@ public final class Cloner {
         obj.setDefaultBootSequence(instance.getDefaultBootSequence());
         obj.setComment(instance.getComment());
         obj.setCustomEmulatedMachine(instance.getCustomEmulatedMachine());
-        obj.setCustomBiosType(instance.getCustomBiosType());
+        obj.setBiosType(instance.getBiosType());
         obj.setCustomCpuName(instance.getCustomCpuName());
         obj.setCustomCompatibilityVersion(instance.getCustomCompatibilityVersion());
         obj.setStateless(instance.isStateless());
@@ -487,7 +489,7 @@ public final class Cloner {
         obj.setMultiQueuesEnabled(instance.isMultiQueuesEnabled());
         obj.setSealed(instance.isSealed());
         obj.setClusterBiosType(instance.getClusterBiosType());
-        obj.setClusterBiosTypeOrigin(instance.getClusterBiosTypeOrigin());
+        obj.setVirtioScsiMultiQueuesEnabled(instance.isVirtioScsiMultiQueuesEnabled());
         return obj;
     }
 
@@ -508,7 +510,7 @@ public final class Cloner {
         obj.setDescription(instance.getDescription());
         obj.setComment(instance.getComment());
         obj.setCustomEmulatedMachine(instance.getCustomEmulatedMachine());
-        obj.setCustomBiosType(instance.getCustomBiosType());
+        obj.setBiosType(instance.getBiosType());
         obj.setCustomCpuName(instance.getCustomCpuName());
         obj.setCustomCompatibilityVersion(instance.getCustomCompatibilityVersion());
         obj.setInitialized(instance.isInitialized());
@@ -543,6 +545,7 @@ public final class Cloner {
         obj.setLeaseStorageDomainId(instance.getLeaseStorageDomainId());
         obj.setVmInit(instance.getVmInit());
         obj.setMultiQueuesEnabled(instance.isMultiQueuesEnabled());
+        obj.setVirtioScsiMultiQueuesEnabled(instance.isVirtioScsiMultiQueuesEnabled());
         return obj;
     }
 

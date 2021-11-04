@@ -331,6 +331,8 @@ public interface CommonApplicationConstants extends Constants {
 
     String persistGridSettingsOnServer();
 
+    String persistGridSettingsOnServerTooltip();
+
     String hideDisplayColumns();
 
     String swapColumns();
@@ -352,6 +354,8 @@ public interface CommonApplicationConstants extends Constants {
     String shutDownVm();
 
     String rebootVm();
+
+    String resetVm();
 
     String pluggedVm();
 
@@ -380,6 +384,8 @@ public interface CommonApplicationConstants extends Constants {
     String physMemGauranteedVm();
 
     String guestFreeCachedBufferedMemInfo();
+
+    String guestFreeCachedBufferedCombinedMemInfo();
 
     String numOfCpuCoresVm();
 
@@ -578,6 +584,8 @@ public interface CommonApplicationConstants extends Constants {
     String watchdog();
 
     String memAllocVmPopup();
+
+    String trustedPlatformModuleVmPopup();
 
     String multiQueuesVmPopup();
 
@@ -815,8 +823,6 @@ public interface CommonApplicationConstants extends Constants {
 
     String originalAllocationDisk();
 
-    String cinderVolumeTypeDisk();
-
     String interfaceDisk();
 
     String logicalNameDisk();
@@ -828,6 +834,8 @@ public interface CommonApplicationConstants extends Constants {
     String creationDateDisk();
 
     String modificationDateDisk();
+
+    String diskSnapshotCreationDate();
 
     String diskSnapshotIDDisk();
 
@@ -1059,8 +1067,6 @@ public interface CommonApplicationConstants extends Constants {
 
     String directLunDisk();
 
-    String cinderDisk();
-
     String managedBlockDisk();
 
     String storageIscsiPopupLunToTargetsTabLabel();
@@ -1171,11 +1177,19 @@ public interface CommonApplicationConstants extends Constants {
 
     String multiQueuesLabel();
 
+    String virtioScsiMultiQueuesEnabled();
+
+    String isVirtioScsiMultiQueuesInfoIcon();
+
     String cpuPinningLabelExplanation();
 
     String diskFormatTypeMatrixInfo();
 
     String multiQueuesLabelExplanation();
+
+    String autoPinningLabelExplanation();
+
+    String autoPinningLabel();
 
     String monitors();
 
@@ -1196,8 +1210,6 @@ public interface CommonApplicationConstants extends Constants {
     String imageDisksLabel();
 
     String lunDisksLabel();
-
-    String cinderDisksLabel();
 
     String managedBlockDisksLabel();
 
@@ -1431,6 +1443,8 @@ public interface CommonApplicationConstants extends Constants {
 
     String noneQos();
 
+    String noneFailover();
+
     String hostPasswordLabel();
 
     String hostPublicKeyLable();
@@ -1458,8 +1472,6 @@ public interface CommonApplicationConstants extends Constants {
     String ignitionScriptInfo();
 
     String diskInterfaceInfo();
-
-    String cinderVolumeTypeInfoIcon();
 
     String scsiReservationInfoIcon();
 
@@ -1787,6 +1799,8 @@ public interface CommonApplicationConstants extends Constants {
 
     String hostRestartAfterUpgrade();
 
+    String tsxRemovalInsecureCpuWarning();
+
     String imageFormat();
 
     String imageBackingFile();
@@ -1922,4 +1936,10 @@ public interface CommonApplicationConstants extends Constants {
     String ppcChipset();
 
     String s390xChipset();
+
+    String tpmDeviceLabel();
+
+    String typeToSearchPlaceHolder();
+
+    String configChangesPending();
 }

@@ -72,6 +72,7 @@ import org.ovirt.engine.core.dao.VdsDao;
 import org.ovirt.engine.core.dao.VdsNumaNodeDao;
 import org.ovirt.engine.core.dao.VmDao;
 import org.ovirt.engine.core.dao.VmDeviceDao;
+import org.ovirt.engine.core.dao.VmNumaNodeDao;
 import org.ovirt.engine.core.utils.InjectedMock;
 import org.ovirt.engine.core.utils.MockConfigDescriptor;
 import org.ovirt.engine.core.utils.MockConfigExtension;
@@ -142,6 +143,8 @@ public class UpdateVmCommandTest extends BaseCommandTest {
     private CloudInitHandler cloudInitHandler;
     @Mock
     private AffinityValidator affinityValidator;
+    @Mock
+    private VmNumaNodeDao vmNumaNodeDao;
 
     private static Map<String, String> createMigrationMap() {
         Map<String, String> migrationMap = new HashMap<>();
@@ -149,6 +152,14 @@ public class UpdateVmCommandTest extends BaseCommandTest {
         migrationMap.put("x86", "true");
         migrationMap.put("ppc", "true");
         return migrationMap;
+    }
+
+    private static Map<String, Integer> createMaxNumberOfVmCpusMap() {
+        Map<String, Integer> maxVmCpusMap = new HashMap<>();
+        maxVmCpusMap.put("s390x", 384);
+        maxVmCpusMap.put("x86", 512);
+        maxVmCpusMap.put("ppc", 384);
+        return maxVmCpusMap;
     }
 
     public static Stream<MockConfigDescriptor<?>> mockConfiguration() {
@@ -162,7 +173,7 @@ public class UpdateVmCommandTest extends BaseCommandTest {
                 MockConfigDescriptor.of(ConfigValues.IsMigrationSupported, version, createMigrationMap()),
                 MockConfigDescriptor.of(ConfigValues.MaxNumOfCpuPerSocket, version, 16),
                 MockConfigDescriptor.of(ConfigValues.MaxNumOfThreadsPerCpu, version, 8),
-                MockConfigDescriptor.of(ConfigValues.MaxNumOfVmCpus, version, 16),
+                MockConfigDescriptor.of(ConfigValues.MaxNumOfVmCpus, version, createMaxNumberOfVmCpusMap()),
                 MockConfigDescriptor.of(ConfigValues.MaxNumOfVmSockets, version, 16),
                 MockConfigDescriptor.of(ConfigValues.VM32BitMaxMemorySizeInMB, version, 20480),
                 MockConfigDescriptor.of(ConfigValues.VM64BitMaxMemorySizeInMB, version, 4194304),
@@ -199,6 +210,7 @@ public class UpdateVmCommandTest extends BaseCommandTest {
         when(osRepository.isWindows(osId)).thenReturn(false);
         when(osRepository.getArchitectureFromOS(osId)).thenReturn(ArchitectureType.x86_64);
         when(osRepository.isCpuSupported(anyInt(), any(), any())).thenReturn(true);
+        when(osRepository.isQ35Supported(anyInt())).thenReturn(true);
 
         when(vmValidationUtils.isOsTypeSupported(anyInt(), any())).thenReturn(true);
         when(vmValidationUtils.isGraphicsAndDisplaySupported(anyInt(), any(), any(), any())).thenReturn(true);
@@ -212,6 +224,7 @@ public class UpdateVmCommandTest extends BaseCommandTest {
 
         when(affinityValidator.validateAffinityUpdateForVm(any(), any(), any(), any()))
                 .thenReturn(AffinityValidator.Result.VALID);
+        when(vmNumaNodeDao.getAllVmNumaNodeByVmId(any())).thenReturn(Collections.emptyList());
 
         vm = new VM();
         vmStatic = command.getParameters().getVmStaticData();
@@ -220,20 +233,18 @@ public class UpdateVmCommandTest extends BaseCommandTest {
         group.setId(clusterId);
         group.setCompatibilityVersion(version);
         group.setArchitecture(ArchitectureType.x86_64);
-        group.setBiosType(BiosType.I440FX_SEA_BIOS);
+        group.setBiosType(BiosType.Q35_SEA_BIOS);
         vm.setClusterId(clusterId);
         vm.setClusterArch(ArchitectureType.x86_64);
+        vm.setBiosType(BiosType.Q35_SEA_BIOS);
         vm.setVmMemSizeMb(MEMORY_SIZE);
         vm.setMaxMemorySizeMb(MAX_MEMORY_SIZE);
         vm.setOrigin(OriginType.OVIRT);
 
         doReturn(group).when(command).getCluster();
-        doReturn(group).when(command).getNewCluster();
         doReturn(vm).when(command).getVm();
         doReturn(ActionType.UpdateVm).when(command).getActionType();
         doReturn(false).when(command).isVirtioScsiEnabledForVm(any());
-        doReturn(true).when(command).isBalloonEnabled();
-        doReturn(true).when(osRepository).isBalloonEnabled(vm.getVmOsId(), group.getCompatibilityVersion());
 
         doReturn(vmDeviceUtils).when(command).getVmDeviceUtils();
         doReturn(numaValidator).when(command).getNumaValidator();
@@ -293,7 +304,7 @@ public class UpdateVmCommandTest extends BaseCommandTest {
 
         doReturn(false).when(command).isDedicatedVdsExistOnSameCluster(any());
 
-        vmStatic.setDedicatedVmForVdsList(Guid.newGuid());
+        vmStatic.setDedicatedVmForVdsList(Collections.singletonList(Guid.newGuid()));
 
         assertFalse(command.validate(), "validate should have failed with invalid dedicated host.");
     }
@@ -306,7 +317,7 @@ public class UpdateVmCommandTest extends BaseCommandTest {
         VDS vds = new VDS();
         vds.setClusterId(group.getId());
         when(vdsDao.get(any())).thenReturn(vds);
-        vmStatic.setDedicatedVmForVdsList(Guid.newGuid());
+        vmStatic.setDedicatedVmForVdsList(Collections.singletonList(Guid.newGuid()));
 
         command.initEffectiveCompatibilityVersion();
         ValidateTestUtils.runAndAssertValidateSuccess(command);
@@ -626,7 +637,6 @@ public class UpdateVmCommandTest extends BaseCommandTest {
     private void prepareVmToPassValidate() {
         vmStatic.setName("vm1");
         vmStatic.setMemSizeMb(256);
-        vmStatic.setSingleQxlPci(false);
         mockVmDaoGetVm();
         mockSameNameQuery(false);
         mockValidateCustomProperties();

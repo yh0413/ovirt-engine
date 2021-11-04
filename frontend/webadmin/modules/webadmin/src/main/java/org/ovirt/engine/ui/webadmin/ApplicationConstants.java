@@ -213,15 +213,7 @@ public interface ApplicationConstants extends CommonApplicationConstants {
 
     String hostProviderTabLabel();
 
-    String discoveredHostsLabel();
-
-    String provisionedHostsLabel();
-
     String hostProviderType();
-
-    String hostGroupsLabel();
-
-    String computeResourceLabel();
 
     String computeLabel();
 
@@ -402,6 +394,8 @@ public interface ApplicationConstants extends CommonApplicationConstants {
 
     String clusterGlusterHooksSubTabLabel();
 
+    String clusterEventSubTabLabel();
+
     String affinityGroupSubTabLabel();
 
     String affinityLabelsImplicitGroupInfo();
@@ -504,7 +498,7 @@ public interface ApplicationConstants extends CommonApplicationConstants {
 
     String hostPopupHostAddressLabelHelpMessage();
 
-    String hostPopupHostFingerprintLabel();
+    String hostPopupHostPublicKeyLabel();
 
     String hostPopupUsernameLabel();
 
@@ -526,11 +520,9 @@ public interface ApplicationConstants extends CommonApplicationConstants {
 
     String hostPopupEnableExternalHostProvider();
 
-    String hostPopupExternalHostName();
+    String hostPopupEnableExternalHostProviderHelpMessage();
 
     String hostPopupUpdateHosts();
-
-    String hostPopupProviderSearchFilter();
 
     String hostPopupPmEnabledLabel();
 
@@ -616,6 +608,10 @@ public interface ApplicationConstants extends CommonApplicationConstants {
 
     String activateHostAfterInstallLabel();
 
+    String rebootHostAfterInstallLabel();
+
+    String rebootHostAfterInstallLabelHelpMessage();
+
     String reconfigureGlusterLabel();
 
     String importVmGeneralSubTabLabel();
@@ -688,7 +684,11 @@ public interface ApplicationConstants extends CommonApplicationConstants {
 
     String clusterPopupBiosTypeLabel();
 
+    String clusterPopupBiosTypeInfoIcon();
+
     String clusterPopupArchitectureLabel();
+
+    String clusterPopupFipsModeLabel();
 
     String clusterPopupVersionLabel();
 
@@ -915,6 +915,8 @@ public interface ApplicationConstants extends CommonApplicationConstants {
 
     String quotaClusterSubTabLabel();
 
+    String clusterChangeToQ35();
+
     String clusterEnableOvirtServiceLabel();
 
     String clusterEnableGlusterServiceLabel();
@@ -922,8 +924,6 @@ public interface ApplicationConstants extends CommonApplicationConstants {
     String clusterImportGlusterConfigurationLabel();
 
     String clusterImportGlusterConfigurationExplanationLabel();
-
-    String clusterImportGlusterFingerprintInfoLabel();
 
     String quotaStorageSubTabLabel();
 
@@ -1121,6 +1121,8 @@ public interface ApplicationConstants extends CommonApplicationConstants {
 
     String migratableVnicProfile();
 
+    String failoverVnicProfile();
+
     String portMirroringVnicProfile();
 
     String customPropertiesVnicProfile();
@@ -1198,6 +1200,8 @@ public interface ApplicationConstants extends CommonApplicationConstants {
     String dcHost();
 
     String statusCluster();
+
+    String statusClusterUpgrade();
 
     String statusHost();
 
@@ -1392,6 +1396,8 @@ public interface ApplicationConstants extends CommonApplicationConstants {
     String destroyStorage();
 
     String scanDisksStorage();
+
+    String selectStorageDomainAsMaster();
 
     String statusStorage();
 
@@ -2122,7 +2128,7 @@ public interface ApplicationConstants extends CommonApplicationConstants {
 
     String hostsPopupApply();
 
-    String hostsPopupFingerprint();
+    String hostsPopupSshPublicKey();
 
     String addTag();
 
@@ -2328,12 +2334,6 @@ public interface ApplicationConstants extends CommonApplicationConstants {
     String checkConnectivityInfoPart1();
 
     String checkConnectivityInfoPart2();
-
-    String providerSearchInfo();
-
-    String provisionedHostInfo();
-
-    String discoveredHostInfoIcon();
 
     String commitChangesInfoPart1();
 
@@ -2701,7 +2701,7 @@ public interface ApplicationConstants extends CommonApplicationConstants {
 
     String importedNetworks();
 
-    String fetchingHostFingerprint();
+    String fetchingHostPublicKey();
 
     String networkQoSName();
 
@@ -3578,6 +3578,12 @@ public interface ApplicationConstants extends CommonApplicationConstants {
 
     String clusterHasHostWithMissingCpuFlagsWarning();
 
+    String clusterCpuConfigurationOutdatedWarning();
+
+    String clusterHasUpgradableHosts();
+
+    String clusterUpgradeInProgress();
+
     String vmCpuTypeDoesNotMatchClusterCpuType();
 
     String supportedCpusInfo();
@@ -3607,4 +3613,6 @@ public interface ApplicationConstants extends CommonApplicationConstants {
     String prometheusCertificateAuthorityHelpMessage();
 
     String ipv6AutoconfAvailabilityInfo();
+
+    String cleanupFinishedTasks();
 }

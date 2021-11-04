@@ -1,6 +1,7 @@
 package org.ovirt.engine.core.vdsbroker.vdsbroker;
 
 import java.security.cert.Certificate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
@@ -8,6 +9,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.ovirt.engine.core.common.action.VmExternalDataKind;
 import org.ovirt.engine.core.common.businessentities.storage.ImageTicket;
 import org.ovirt.engine.core.compat.Guid;
 import org.ovirt.engine.core.vdsbroker.gluster.GlusterHookContentInfoReturn;
@@ -41,7 +43,6 @@ import org.ovirt.engine.core.vdsbroker.irsbroker.StoragePoolInfo;
 import org.ovirt.engine.core.vdsbroker.irsbroker.UUIDListReturn;
 import org.ovirt.engine.core.vdsbroker.irsbroker.VmBackupInfo;
 import org.ovirt.engine.core.vdsbroker.irsbroker.VmCheckpointIds;
-import org.ovirt.engine.core.vdsbroker.irsbroker.VmCheckpointInfo;
 import org.ovirt.vdsm.jsonrpc.client.BrokerCommandCallback;
 
 @SuppressWarnings("rawtypes")
@@ -69,6 +70,8 @@ public interface IVdsServer {
     StatusOnlyReturn shutdown(String vmId, String timeout, String message);
 
     StatusOnlyReturn shutdown(String vmId, String timeout, String message, boolean reboot);
+
+    StatusOnlyReturn reset(String vmId);
 
     StatusOnlyReturn setDestroyOnReboot(String vmId);
 
@@ -111,6 +114,8 @@ public interface IVdsServer {
     VMInfoListReturn getVmStats(String vmId);
 
     VMInfoListReturn getAllVmStats();
+
+    VmExternalDataReturn getVmExternalData(String vmId, VmExternalDataKind kind, boolean forceUpdate);
 
     HostDevListReturn hostDevListByCaps();
 
@@ -536,13 +541,17 @@ public interface IVdsServer {
 
     VmBackupInfo vmBackupInfo(String vmId, String backupId, String checkpointId);
 
-    VmCheckpointIds redefineVmCheckpoints(String vmId, Map<String, Object>[] checkpoints);
+    VmCheckpointIds redefineVmCheckpoints(String vmId, Collection<Map<String, Object>> checkpoints);
 
     VmCheckpointIds deleteVmCheckpoints(String vmId, String[] checkpointIds);
 
     UUIDListReturn listVmCheckpoints(String vmId);
 
-    VmCheckpointInfo getVmCheckpointsXML(String vmId, String checkpointId);
+    StatusOnlyReturn addBitmap(String jobId, Map<String, Object> volInfo, String bitmapName);
+
+    StatusOnlyReturn removeBitmap(String jobId, Map<String, Object> volInfo, String bitmapName);
+
+    StatusOnlyReturn clearBitmaps(String jobId, Map<String, Object> volInfo);
 
     NbdServerURLReturn startNbdServer(String serverId, Map<String, Object> nbdServerConfig);
 
@@ -571,7 +580,7 @@ public interface IVdsServer {
 
     StatusOnlyReturn amendVolume(String jobId, Map<String, Object> volInfo, Map<String, Object> volAttr);
 
-    StatusOnlyReturn sealDisks(String templateId, String jobId, String storagePoolId, List<Map<String, Object>> images);
+    StatusOnlyReturn sealDisks(String vmId, String jobId, String storagePoolId, List<Map<String, Object>> images);
 
     DomainXmlListReturn dumpxmls(List<String> vmIds);
 
@@ -589,4 +598,8 @@ public interface IVdsServer {
     DeviceInfoReturn attachManagedBlockStorageVolume(Guid volumeId, Map<String, Object> connectionInfo);
 
     StatusOnlyReturn detachManagedBlockStorageVolume(Guid volumeId);
+
+    VDSInfoReturn getLeaseStatus(String leaseUUID, String sdUUID);
+
+    StatusOnlyReturn fenceLeaseJob(String leaseUUID, String sdUUID, Map<String, Object> leaseMetadata);
 }

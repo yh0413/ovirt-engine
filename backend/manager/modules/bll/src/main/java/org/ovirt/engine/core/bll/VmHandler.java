@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -30,8 +32,10 @@ import org.apache.commons.lang.exception.ExceptionUtils;
 import org.ovirt.engine.core.bll.context.CompensationContext;
 import org.ovirt.engine.core.bll.interfaces.BackendInternal;
 import org.ovirt.engine.core.bll.network.macpool.MacPool;
+import org.ovirt.engine.core.bll.scheduling.utils.NumaPinningHelper;
 import org.ovirt.engine.core.bll.snapshots.SnapshotVmConfigurationHelper;
 import org.ovirt.engine.core.bll.snapshots.SnapshotsManager;
+import org.ovirt.engine.core.bll.storage.disk.DiskHandler;
 import org.ovirt.engine.core.bll.storage.disk.image.DisksFilter;
 import org.ovirt.engine.core.bll.storage.domain.IsoDomainListSynchronizer;
 import org.ovirt.engine.core.bll.utils.CompensationUtils;
@@ -47,6 +51,9 @@ import org.ovirt.engine.core.common.action.VmManagementParametersBase;
 import org.ovirt.engine.core.common.backendinterfaces.BaseHandler;
 import org.ovirt.engine.core.common.businessentities.ActionGroup;
 import org.ovirt.engine.core.common.businessentities.ArchitectureType;
+import org.ovirt.engine.core.common.businessentities.AutoPinningPolicy;
+import org.ovirt.engine.core.common.businessentities.BiosType;
+import org.ovirt.engine.core.common.businessentities.ChipsetType;
 import org.ovirt.engine.core.common.businessentities.Cluster;
 import org.ovirt.engine.core.common.businessentities.CopyOnNewVersion;
 import org.ovirt.engine.core.common.businessentities.DisplayType;
@@ -65,6 +72,7 @@ import org.ovirt.engine.core.common.businessentities.VDS;
 import org.ovirt.engine.core.common.businessentities.VDSStatus;
 import org.ovirt.engine.core.common.businessentities.VM;
 import org.ovirt.engine.core.common.businessentities.VMStatus;
+import org.ovirt.engine.core.common.businessentities.VdsDynamic;
 import org.ovirt.engine.core.common.businessentities.VmBase;
 import org.ovirt.engine.core.common.businessentities.VmDevice;
 import org.ovirt.engine.core.common.businessentities.VmDeviceGeneralType;
@@ -109,6 +117,7 @@ import org.ovirt.engine.core.common.vdscommands.VdsAndVmIDVDSParametersBase;
 import org.ovirt.engine.core.compat.Guid;
 import org.ovirt.engine.core.compat.RpmVersion;
 import org.ovirt.engine.core.compat.Version;
+import org.ovirt.engine.core.compat.WindowsJavaTimezoneMapping;
 import org.ovirt.engine.core.dal.dbbroker.auditloghandling.AuditLogDirector;
 import org.ovirt.engine.core.dal.dbbroker.auditloghandling.AuditLogable;
 import org.ovirt.engine.core.dal.dbbroker.auditloghandling.AuditLogableImpl;
@@ -118,12 +127,15 @@ import org.ovirt.engine.core.dao.DiskVmElementDao;
 import org.ovirt.engine.core.dao.SnapshotDao;
 import org.ovirt.engine.core.dao.StoragePoolDao;
 import org.ovirt.engine.core.dao.VdsDao;
+import org.ovirt.engine.core.dao.VdsDynamicDao;
+import org.ovirt.engine.core.dao.VdsNumaNodeDao;
 import org.ovirt.engine.core.dao.VdsStaticDao;
 import org.ovirt.engine.core.dao.VmDao;
 import org.ovirt.engine.core.dao.VmDynamicDao;
 import org.ovirt.engine.core.dao.VmInitDao;
 import org.ovirt.engine.core.dao.VmNumaNodeDao;
 import org.ovirt.engine.core.dao.network.VmNetworkInterfaceDao;
+import org.ovirt.engine.core.utils.MemoizingSupplier;
 import org.ovirt.engine.core.utils.ObjectIdentityChecker;
 import org.ovirt.engine.core.utils.ReplacementUtils;
 import org.ovirt.engine.core.utils.VirtioWinLoader;
@@ -132,6 +144,7 @@ import org.ovirt.engine.core.utils.threadpool.ThreadPools;
 import org.ovirt.engine.core.utils.transaction.TransactionSupport;
 import org.ovirt.engine.core.vdsbroker.ResourceManager;
 import org.ovirt.engine.core.vdsbroker.VmManager;
+import org.ovirt.engine.core.vdsbroker.builder.vminfo.VmInfoBuildUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -214,6 +227,15 @@ public class VmHandler implements BackendService {
 
     @Inject
     private VirtioWinLoader virtioWinLoader;
+
+    @Inject
+    private VdsDynamicDao vdsDynamicDao;
+
+    @Inject
+    private VdsNumaNodeDao vdsNumaNodeDao;
+
+    @Inject
+    private DiskHandler diskHandler;
 
     @Inject
     @ThreadPools(ThreadPools.ThreadPoolType.EngineScheduledThreadPool)
@@ -487,8 +509,7 @@ public class VmHandler implements BackendService {
 
     public void updateDisksVmDataForVm(VM vm) {
         for (Disk disk : vm.getDiskMap().values()) {
-            DiskVmElement dve = diskVmElementDao.get(new VmDeviceId(disk.getId(), vm.getId()));
-            disk.setDiskVmElements(Collections.singletonList(dve));
+            diskHandler.updateDiskVmElementFromDb(disk, vm.getId());
         }
     }
 
@@ -664,6 +685,24 @@ public class VmHandler implements BackendService {
         vm.setConfiguredCpuVerb(configuredCpuVerb);
     }
 
+    public void updateIsDifferentTimeZone(VM vm, MemoizingSupplier<Function<String, Integer>> javaZoneIdToOffset) {
+        String timeZone = vm.getTimeZone();
+        if (timeZone != null && !timeZone.isEmpty() && osRepository.isWindows(vm.getOs())) {
+            String javaZoneId = WindowsJavaTimezoneMapping.get(timeZone);
+            int offset = javaZoneIdToOffset.get().apply(javaZoneId);
+            int guestOffset = vm.getGuestOsTimezoneOffset() * 60; // convert to seconds
+            vm.setDifferentTimeZone(guestOffset != offset);
+        }
+    }
+
+    public MemoizingSupplier<Function<String, Integer>> getJavaZoneIdToOffsetFuncSupplier() {
+        return new MemoizingSupplier<>(() -> {
+            long now = System.currentTimeMillis();
+            Map<String, Integer> cache = new HashMap<>();
+            return javaZoneId -> cache.computeIfAbsent(javaZoneId, tz -> VmInfoBuildUtils.javaZoneToOffset(tz, now));
+        });
+    }
+
     public VmManagementParametersBase createVmManagementParametersBase(VM vm) {
         VmManagementParametersBase params = new VmManagementParametersBase(vm);
         List<VmDevice> devices = new ArrayList<>(vm.getManagedVmDeviceMap().values());
@@ -747,14 +786,22 @@ public class VmHandler implements BackendService {
      *            Collection of graphics types (SPICE, VNC).
      * @param displayType
      *            Display type.
+     * @param biosType
+     *            Chipset/Firmware type.
      * @param clusterVersion
      *            The cluster version.
      */
     public ValidationResult isGraphicsAndDisplaySupported
-        (int osId, Collection<GraphicsType> graphics, DisplayType displayType, Version clusterVersion) {
-        return ValidationResult
-                .failWith(EngineMessage.ACTION_TYPE_FAILED_ILLEGAL_VM_DISPLAY_TYPE_IS_NOT_SUPPORTED_BY_OS)
-                .unless(vmValidationUtils.isGraphicsAndDisplaySupported(osId, clusterVersion, graphics, displayType));
+        (int osId, Collection<GraphicsType> graphics, DisplayType displayType, BiosType biosType, Version clusterVersion) {
+        if (!vmValidationUtils.isGraphicsAndDisplaySupported(osId, clusterVersion, graphics, displayType)) {
+            return new ValidationResult(
+                    EngineMessage.ACTION_TYPE_FAILED_ILLEGAL_VM_DISPLAY_TYPE_IS_NOT_SUPPORTED_BY_OS);
+        }
+        if (displayType == DisplayType.bochs && (biosType == null || !biosType.isOvmf())) {
+            return new ValidationResult(
+                    EngineMessage.ACTION_TYPE_FAILED_ILLEGAL_VM_DISPLAY_TYPE_IS_NOT_SUPPORTED_BY_FIRMWARE);
+        }
+        return ValidationResult.VALID;
     }
 
     /**
@@ -805,16 +852,6 @@ public class VmHandler implements BackendService {
         }
 
         return ValidationResult.failWith(EngineMessage.ACTION_TYPE_FAILED_ILLEGAL_NUM_OF_MONITORS).unless(legal);
-    }
-
-    public ValidationResult isSingleQxlDeviceLegal(DisplayType displayType, int osId) {
-        if (displayType != DisplayType.qxl) {
-            return new ValidationResult(EngineMessage.ACTION_TYPE_FAILED_ILLEGAL_SINGLE_DEVICE_DISPLAY_TYPE);
-        }
-        if (!osRepository.isSingleQxlDeviceEnabled(osId)) {
-            return new ValidationResult(EngineMessage.ACTION_TYPE_FAILED_ILLEGAL_SINGLE_DEVICE_OS_TYPE);
-        }
-        return ValidationResult.VALID;
     }
 
     /**
@@ -1107,6 +1144,11 @@ public class VmHandler implements BackendService {
             if (osRepository.isWindows(vm.getVmOsId())) {
                 if (!FeatureSupported.isWindowsGuestToolsSupported(vm.getClusterCompatibilityVersion())) {
                     virtioWinLoader.load();
+                    // in case we are suppose to use virtio-win RPM but it's not installed we can't check the status
+                    if (virtioWinLoader.getVirtioIsoName() == null
+                            || virtioWinLoader.getAgentVersionByOsName(vm.getVmOsId()) == null) {
+                        return;
+                    }
                     if (getLatestGuestToolsVersion(Set.of(virtioWinLoader.getVirtioIsoName()), getRegexVirtIoIsoPattern())
                             .equals(latestVersionVIO)) {
                         String availableAgent = virtioWinLoader.getAgentVersionByOsName(vm.getVmOsId());
@@ -1257,15 +1299,13 @@ public class VmHandler implements BackendService {
         return ValidationResult.VALID;
     }
 
-    public void autoSelectResumeBehavior(VmBase vmBase, Cluster cluster) {
-        if (cluster == null) {
-            return;
-        }
-
-        autoSelectResumeBehavior(vmBase, cluster.getCompatibilityVersion());
+    public void updateCpuAndNumaPinning(VmBase vmBase, AutoPinningPolicy autoPinningPolicy) {
+        VdsDynamic host = vdsDynamicDao.get(vmBase.getDedicatedVmForVdsList().get(0));
+        NumaPinningHelper.applyAutoPinningPolicy(vmBase, autoPinningPolicy, host,
+                vdsNumaNodeDao.getAllVdsNumaNodeByVdsId(host.getId()));
     }
 
-    public void autoSelectResumeBehavior(VmBase vmBase, Version clusterVersion) {
+    public void autoSelectResumeBehavior(VmBase vmBase) {
         if (vmBase.isAutoStartup() && vmBase.getLeaseStorageDomainId() != null) {
             // since 4.2 the only supported resume behavior for HA vms with lease is kill
             vmBase.setResumeBehavior(VmResumeBehavior.KILL);
@@ -1308,12 +1348,24 @@ public class VmHandler implements BackendService {
             displayGraphicsSupport.get(display).add(graphicsAndDisplay.getFirst());
         }
 
-        for (Map.Entry<DisplayType, Set<GraphicsType>> entry : displayGraphicsSupport.entrySet()) {
-            final List<GraphicsType> graphicsTypes = vmDeviceUtils.getGraphicsTypesOfEntity(srcEntityId);
-            final Set<GraphicsType> resultingVmGraphics = getResultingVmGraphics(graphicsTypes, graphicsDevices);
-            if (entry.getValue().containsAll(resultingVmGraphics)) {
-                defaultDisplayType = entry.getKey();
-                break;
+        final List<GraphicsType> graphicsTypes = vmDeviceUtils.getGraphicsTypesOfEntity(srcEntityId);
+        final Set<GraphicsType> resultingVmGraphics = getResultingVmGraphics(graphicsTypes, graphicsDevices);
+
+        if (parametersStaticData.getVmType() == VmType.Server &&
+                parametersStaticData.getBiosType() != null &&
+                parametersStaticData.getBiosType().isOvmf()) {
+            Set<GraphicsType> bochsGraphics = displayGraphicsSupport.get(DisplayType.bochs);
+            if (bochsGraphics != null && bochsGraphics.containsAll(resultingVmGraphics)) {
+                defaultDisplayType = DisplayType.bochs;
+            }
+        }
+
+        if (defaultDisplayType == null) {
+            for (Map.Entry<DisplayType, Set<GraphicsType>> entry : displayGraphicsSupport.entrySet()) {
+                if (entry.getValue().containsAll(resultingVmGraphics)) {
+                    defaultDisplayType = entry.getKey();
+                    break;
+                }
             }
         }
 
@@ -1452,6 +1504,7 @@ public class VmHandler implements BackendService {
         final VM newVm = new VM();
         newVm.setStaticData(newVmStatic);
         newVm.setClusterBiosType(existingVm.getClusterBiosType());
+        newVm.setClusterArch(existingVm.getClusterArch());
 
         Set<String> changedFields = getChangedFieldsForStatus(
                 existingVm.getStaticData(),
@@ -1496,6 +1549,117 @@ public class VmHandler implements BackendService {
         } else {
             return new ManagedVmValidator();
         }
+    }
+
+    public ValidationResult validateAutoPinningPolicy(VmBase vmBase, AutoPinningPolicy autoPinningPolicy) {
+        if (autoPinningPolicy == AutoPinningPolicy.PIN) {
+            return new ValidationResult(EngineMessage.ACTION_TYPE_AUTO_PIN_EXISTING_NOT_SUPPORTED);
+        }
+
+        if (vmBase.getDedicatedVmForVdsList().isEmpty() && autoPinningPolicy != AutoPinningPolicy.NONE) {
+            return new ValidationResult(EngineMessage.ACTION_TYPE_CANNOT_PIN_WITHOUT_HOST);
+        }
+
+        if (autoPinningPolicy != AutoPinningPolicy.RESIZE_AND_PIN) {
+            return ValidationResult.VALID;
+        }
+        boolean singleCoreHostFound = vmBase.getDedicatedVmForVdsList().stream()
+                .map(vdsId -> vdsDynamicDao.get(vdsId))
+                .anyMatch(vdsDynamic -> vdsDynamic.getCpuCores() / vdsDynamic.getCpuSockets() == 1);
+        if (singleCoreHostFound) {
+            return new ValidationResult(EngineMessage.ACTION_TYPE_CANNOT_RESIZE_AND_PIN_SINGLE_CORE);
+        }
+        return ValidationResult.VALID;
+    }
+
+    public void updateToQ35(VmStatic oldVm,
+            VmStatic newVm,
+            Cluster cluster,
+            CompensationContext compensationContext) {
+
+        if (newVm.getBiosType() == BiosType.I440FX_SEA_BIOS
+                && cluster.getBiosType().getChipsetType() == ChipsetType.Q35
+                && osRepository.isQ35Supported(newVm.getOsId())) {
+            newVm.setBiosType(BiosType.Q35_SEA_BIOS);
+        }
+
+        if (oldVm.getBiosType() != newVm.getBiosType()) {
+            VmManager vmManager = resourceManager.getVmManager(newVm.getId());
+            vmManager.update(newVm);
+
+            if (oldVm.getBiosType().getChipsetType() != newVm.getBiosType().getChipsetType()) {
+                convertVmToNewChipset(oldVm,
+                        newVm,
+                        cluster,
+                        compensationContext);
+            }
+        }
+    }
+
+    public void convertVmToNewChipset(VmBase oldVmBase,
+            VmBase newVmBase,
+            Cluster cluster,
+            CompensationContext compensationContext) {
+        vmDeviceUtils.updateSoundDevice(oldVmBase,
+                newVmBase,
+                CompatibilityVersionUtils.getEffective(newVmBase, cluster),
+                vmDeviceUtils.hasSoundDevice(oldVmBase.getId()));
+        vmDeviceUtils.updateUsbSlots(oldVmBase, newVmBase, cluster);
+        convertVmToNewChipset(newVmBase.getId(), newVmBase.getBiosType().getChipsetType(), compensationContext);
+    }
+
+    public void convertVmToNewChipset(Guid vmId, ChipsetType newChipsetType, CompensationContext compensationContext) {
+        convertVmDisksToNewChipset(vmId, newChipsetType, compensationContext);
+        vmDeviceUtils.convertVmDevicesToNewChipset(vmId, newChipsetType, compensationContext != null);
+    }
+
+    private void convertVmDisksToNewChipset(Guid vmId, ChipsetType newChipsetType, CompensationContext compensationContext) {
+        log.info("Converting all disks for VM with id {} to new chipset {}", vmId, newChipsetType);
+        List<DiskVmElement> diskVmElements = diskVmElementDao.getAllForVm(vmId);
+        for (DiskVmElement diskVmElement : diskVmElements) {
+            if (compensationContext != null) {
+                CompensationUtils.<VmDeviceId, DiskVmElement> updateEntity(diskVmElement, el -> {
+                    convertVmDiskToNewChipset(el, newChipsetType);
+                }, diskVmElementDao, compensationContext);
+            } else {
+                convertVmDiskToNewChipset(diskVmElement, newChipsetType);
+            }
+        }
+
+        if (compensationContext == null) {
+            for (DiskVmElement diskVmElement : diskVmElements) {
+                diskVmElementDao.update(diskVmElement);
+            }
+        }
+    }
+
+    private void convertVmDiskToNewChipset(DiskVmElement diskVmElement, ChipsetType newChipsetType) {
+        if (DiskInterface.IDE == diskVmElement.getDiskInterface() && ChipsetType.Q35 == newChipsetType) {
+            diskVmElement.setDiskInterface(DiskInterface.SATA);
+        } else if (DiskInterface.SATA == diskVmElement.getDiskInterface() && ChipsetType.I440FX == newChipsetType) {
+            diskVmElement.setDiskInterface(DiskInterface.IDE);
+        }
+    }
+
+    public Boolean getMigrateEncrypted(VM vm, Cluster cluster) {
+        Version version = vm.getCompatibilityVersion();
+        if (version == null) {
+            return null;
+        }
+
+        if (!FeatureSupported.isMigrateEncryptedSupported(version)) {
+            return null;
+        }
+
+        if (vm.getMigrateEncrypted() != null) {
+            return vm.getMigrateEncrypted();
+        }
+
+        if (cluster.getMigrateEncrypted() != null) {
+            return cluster.getMigrateEncrypted();
+        }
+
+        return Config.getValue(ConfigValues.DefaultMigrationEncryption);
     }
 
     private interface VmNameValidator {

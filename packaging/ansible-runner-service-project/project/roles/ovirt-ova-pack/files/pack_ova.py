@@ -45,7 +45,14 @@ def write_ovf(entity, ova_file, ovf):
     ova_file.write(tar_info.tobuf())
     ova_file.write(ovf if python2 else ovf.encode())
     pad_to_block_size(ova_file)
-    os.fsync(ova_file.fileno())
+
+
+def write_file(name, ova_file, data):
+    print("writing file: %s" % name)
+    tar_info = create_tar_info(name, len(data))
+    ova_file.write(tar_info.tobuf())
+    ova_file.write(data.encode())
+    pad_to_block_size(ova_file)
 
 
 def convert_disks(ova_path):
@@ -83,7 +90,6 @@ def write_disk_headers(ova_file, disks_info):
         ova_file.write(tar_info.tobuf())
         path_to_offset[disk_path] = str(ova_file.tell())
         ova_file.seek(disk_size, 1)
-    os.fsync(ova_file.fileno())
 
 
 def write_null_blocks(ova_file):
@@ -91,17 +97,23 @@ def write_null_blocks(ova_file):
 
 
 if len(sys.argv) < 3:
-    print("Usage: pack_ova.py <vm/template> output_path ovf [disks_info]")
+    print("Usage: pack_ova.py <vm/template> output_path ovf"
+          " [disks_info [tpm_data]]")
     sys.exit(2)
 
 entity = sys.argv[1]
 ova_path = sys.argv[2]
 ovf = sys.argv[3]
 disks_info = sys.argv[4]
+tpm_data = sys.argv[5]
 with io.open(ova_path, "wb") as ova_file:
     write_ovf(entity, ova_file, ovf)
+    if len(tpm_data) > 0:
+        write_file("tpm.dat", ova_file, tpm_data)
     if len(disks_info) > 0:
         write_disk_headers(ova_file, disks_info.split('+'))
     # write two null blocks at the end of the file
     write_null_blocks(ova_file)
+    ova_file.flush()
+    os.fsync(ova_file.fileno())
 convert_disks(ova_path)

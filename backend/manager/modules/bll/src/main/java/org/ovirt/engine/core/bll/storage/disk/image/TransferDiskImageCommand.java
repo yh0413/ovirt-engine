@@ -28,6 +28,7 @@ import org.ovirt.engine.core.bll.validator.storage.DiskValidator;
 import org.ovirt.engine.core.bll.validator.storage.StorageDomainValidator;
 import org.ovirt.engine.core.common.AuditLogType;
 import org.ovirt.engine.core.common.VdcObjectType;
+import org.ovirt.engine.core.common.action.ActionParametersBase;
 import org.ovirt.engine.core.common.action.ActionReturnValue;
 import org.ovirt.engine.core.common.action.ActionType;
 import org.ovirt.engine.core.common.action.AddDiskParameters;
@@ -40,6 +41,7 @@ import org.ovirt.engine.core.common.businessentities.StorageDomain;
 import org.ovirt.engine.core.common.businessentities.VDS;
 import org.ovirt.engine.core.common.businessentities.VM;
 import org.ovirt.engine.core.common.businessentities.VmBackup;
+import org.ovirt.engine.core.common.businessentities.VmBackupPhase;
 import org.ovirt.engine.core.common.businessentities.storage.DiskImage;
 import org.ovirt.engine.core.common.businessentities.storage.ImageStatus;
 import org.ovirt.engine.core.common.businessentities.storage.ImageTicket;
@@ -47,6 +49,7 @@ import org.ovirt.engine.core.common.businessentities.storage.ImageTicketInformat
 import org.ovirt.engine.core.common.businessentities.storage.ImageTransfer;
 import org.ovirt.engine.core.common.businessentities.storage.ImageTransferBackend;
 import org.ovirt.engine.core.common.businessentities.storage.ImageTransferPhase;
+import org.ovirt.engine.core.common.businessentities.storage.TimeoutPolicyType;
 import org.ovirt.engine.core.common.businessentities.storage.TransferType;
 import org.ovirt.engine.core.common.businessentities.storage.VolumeFormat;
 import org.ovirt.engine.core.common.businessentities.storage.VolumeType;
@@ -80,6 +83,7 @@ import org.ovirt.engine.core.dao.VdsDao;
 import org.ovirt.engine.core.dao.VmBackupDao;
 import org.ovirt.engine.core.dao.VmDao;
 import org.ovirt.engine.core.utils.EngineLocalConfig;
+import org.ovirt.engine.core.utils.ReplacementUtils;
 import org.ovirt.engine.core.vdsbroker.vdsbroker.PrepareImageReturn;
 
 @NonTransactiveCommandAttribute
@@ -118,7 +122,8 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
     private Instance<TransferImageCommandCallback> callbackProvider;
 
     private ImageioClient proxyClient;
-    private VmBackup vmBackup;
+    private VmBackup backup;
+    private VM backupVm;
 
     public TransferDiskImageCommand(T parameters, CommandContext cmdContext) {
         super(parameters, cmdContext);
@@ -142,13 +147,13 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
     }
 
     protected String prepareImage(Guid vdsId, Guid imagedTicketId) {
-        if (getParameters().getBackupId() != null) {
+        if (isLiveBackup()) {
             return vmBackupDao.getBackupUrlForDisk(
                     getParameters().getBackupId(), getDiskImage().getId());
         }
         VDSReturnValue vdsRetVal = runVdsCommand(VDSCommandType.PrepareImage,
                     getPrepareParameters(vdsId));
-        if (getTransferBackend() == ImageTransferBackend.NBD) {
+        if (usingNbdServer()) {
             vdsRetVal = runVdsCommand(VDSCommandType.StartNbdServer,
                     getStartNbdServerParameters(vdsId, imagedTicketId));
             return (String) vdsRetVal.getReturnValue();
@@ -167,8 +172,8 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
                 validate(diskValidator.isDiskExists())
                 && validate(diskImagesValidator.diskImagesNotIllegal())
                 && validate(storageDomainValidator.isDomainExistAndActive());
-        if (getParameters().getBackupId() != null) {
-            return isValid && validate(isVmBackupExists()) && validate(isFormatApplicableForBackup());
+        if (isBackup()) {
+            return isValid && validate(isVmBackupReady()) && validate(isFormatApplicableForBackup());
         }
         return isValid
                 && validateActiveDiskPluggedToAnyNonDownVm(diskImage, diskValidator)
@@ -179,10 +184,13 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
         return diskImage.isDiskSnapshot() || validate(diskValidator.isDiskPluggedToAnyNonDownVm(false));
     }
 
-    private ValidationResult isVmBackupExists() {
-        VmBackup vmBackup = getVmBackup();
-        if (vmBackup == null) {
+    private ValidationResult isVmBackupReady() {
+        if (getBackup() == null) {
             return new ValidationResult(EngineMessage.ACTION_TYPE_FAILED_VM_BACKUP_NOT_EXIST);
+        }
+        if (!getBackup().getPhase().equals(VmBackupPhase.READY)) {
+            return new ValidationResult(EngineMessage.ACTION_TYPE_FAILED_VM_BACKUP_NOT_READY,
+                    ReplacementUtils.createSetVariableString("vmBackupPhase", getBackup().getPhase()));
         }
         return ValidationResult.VALID;
     }
@@ -214,6 +222,14 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
                 getDiskImage().getImageId(), true);
     }
 
+    private Guid getBitmap() {
+        if (getParameters().getTransferType() == TransferType.Download
+                && getBackupVm() != null && getBackupVm().isDown()) {
+            return getBackup().getFromCheckpointId();
+        }
+        return null;
+    }
+
     private NbdServerVDSParameters getStartNbdServerParameters(Guid vdsId, Guid imagedTicketId) {
         NbdServerVDSParameters nbdServerVDSParameters = new NbdServerVDSParameters(vdsId);
         nbdServerVDSParameters.setServerId(imagedTicketId);
@@ -223,6 +239,7 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
         nbdServerVDSParameters.setReadonly(getParameters().getTransferType() == TransferType.Download);
         nbdServerVDSParameters.setDiscard(isSparseImage());
         nbdServerVDSParameters.setBackingChain(!getParameters().isShallow());
+        nbdServerVDSParameters.setBitmap(getBitmap());
         return nbdServerVDSParameters;
     }
 
@@ -291,6 +308,7 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
         diskParameters.setParentParameters(getParameters());
         diskParameters.setShouldRemainIllegalOnFailedExecution(true);
         diskParameters.setSkipDomainCheck(true);
+        diskParameters.setEndProcedure(ActionParametersBase.EndProcedure.COMMAND_MANAGED);
         return diskParameters;
     }
 
@@ -320,11 +338,18 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
         return diskImage;
     }
 
-    private VmBackup getVmBackup() {
-        if (vmBackup == null) {
-            vmBackup = vmBackupDao.get(getParameters().getBackupId());
+    private VmBackup getBackup() {
+        if (backup == null) {
+            backup = vmBackupDao.get(getParameters().getBackupId());
         }
-        return vmBackup;
+        return backup;
+    }
+
+    private VM getBackupVm() {
+        if (backupVm == null && getBackup() != null) {
+            backupVm = vmDao.get(getBackup().getVmId());
+        }
+        return backupVm;
     }
 
     @Override
@@ -361,7 +386,7 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
     @Override
     protected Map<String, Pair<String, String>> getSharedLocks() {
         Map<String, Pair<String, String>> locks = new HashMap<>();
-        if (getParameters().getBackupId() != null) {
+        if (isBackup()) {
             // StartVmBackup should handle locks
             return locks;
         }
@@ -376,7 +401,7 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
     @Override
     protected Map<String, Pair<String, String>> getExclusiveLocks() {
         Map<String, Pair<String, String>> locks = new HashMap<>();
-        if (getParameters().getBackupId() != null) {
+        if (isBackup()) {
             // StartVmBackup should handle locks
             return locks;
         }
@@ -400,6 +425,8 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
         entity.setClientInactivityTimeout(getParameters().getClientInactivityTimeout() != null ?
                 getParameters().getClientInactivityTimeout() :
                 getTransferImageClientInactivityTimeoutInSeconds());
+        entity.setTimeoutPolicy(getParameters().getTimeoutPolicyType() != null ?
+                getParameters().getTimeoutPolicyType() : TimeoutPolicyType.LEGACY);
         entity.setImageFormat(getTransferImageFormat());
         entity.setBackend(getTransferBackend());
         entity.setBackupId(getParameters().getBackupId());
@@ -439,7 +466,7 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
     }
 
     protected ImageTransferBackend getTransferBackend() {
-        if (getParameters().getBackupId() != null) {
+        if (isBackup()) {
             // Incremental backup uses NBD transfer backend
             return ImageTransferBackend.NBD;
         }
@@ -856,11 +883,8 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
         // TODO: refactor to reuse similar logic in handleFinalizingSuccess
         if (stopImageTransferSession(context.entity)) {
             // Setting disk status to ILLEGAL only on upload failure
-            // (only if not disk snapshot)
-            if (!Guid.isNullOrEmpty(getParameters().getImageGroupID())) {
-                setImageStatus(getParameters().getTransferType() == TransferType.Upload ?
-                        ImageStatus.ILLEGAL : ImageStatus.OK);
-            }
+            setImageStatus(getParameters().getTransferType() == TransferType.Upload ?
+                    ImageStatus.ILLEGAL : ImageStatus.OK);
             Guid vdsId = context.entity.getVdsId() != null ? context.entity.getVdsId() : getVdsId();
             // Teardown is required for all scenarios as we call prepareImage when
             // starting a new session.
@@ -900,14 +924,25 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
      */
     private void stopTransferIfNecessary(ImageTransfer entity, long ts, Integer idleTimeFromTicket) {
         if (shouldAbortOnClientInactivityTimeout(entity, ts, idleTimeFromTicket)) {
-            if (getParameters().getTransferType() == TransferType.Download) {
-                // In download flows, we can cancel the transfer if there was no activity
-                // for a while, as the download is handled by the client.
-                auditLog(this, AuditLogType.DOWNLOAD_IMAGE_CANCELED_TIMEOUT);
+            switch (entity.getTimeoutPolicy()) {
+            case LEGACY:
+                if (getParameters().getTransferType() == TransferType.Download) {
+                    // In download flows, we can cancel the transfer if there was no activity
+                    // for a while, as the download is handled by the client.
+                    auditLog(this, AuditLogType.DOWNLOAD_IMAGE_CANCELED_TIMEOUT);
+                    updateEntityPhase(ImageTransferPhase.CANCELLED_SYSTEM);
+                } else {
+                    updateEntityPhaseToStoppedBySystem(AuditLogType.UPLOAD_IMAGE_PAUSED_BY_SYSTEM_TIMEOUT);
+                }
+                break;
+            case PAUSE:
+                auditLog(this, AuditLogType.TRANSFER_IMAGE_PAUSED_ON_TIMEOUT);
+                updateEntityPhase(ImageTransferPhase.PAUSED_SYSTEM);
+                break;
+            case CANCEL:
+                auditLog(this, AuditLogType.TRANSFER_IMAGE_CANCELED_ON_TIMEOUT);
                 updateEntityPhase(ImageTransferPhase.CANCELLED_SYSTEM);
-            } else {
-                updateEntityPhaseToStoppedBySystem(
-                        AuditLogType.UPLOAD_IMAGE_PAUSED_BY_SYSTEM_TIMEOUT);
+                break;
             }
         }
     }
@@ -1011,17 +1046,30 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
     @Override
     protected boolean initializeVds() {
         // In case of downloading a backup disk, the host that runs the VM must handle the transfer
-        if (getParameters().getBackupId() != null && getParameters().getTransferType() == TransferType.Download) {
-            VmBackup vmBackup = getVmBackup();
-            if (vmBackup == null) {
-                log.warn("Cannot download disk id: '{}' backup id: '{}' not exist.",
+        if (isBackup() && getParameters().getTransferType() == TransferType.Download) {
+            VmBackup backup = getBackup();
+            if (backup == null) {
+                log.error("Cannot download disk: '{}'. Backup id: '{}' doesn't exist.",
                         getDiskImage().getId(),
                         getParameters().getBackupId());
                 return false;
             }
 
-            VM vm = vmDao.get(vmBackup.getVmId());
-            VDS vds = vdsDao.get(vm.getRunOnVds());
+            if (getBackupVm() == null) {
+                log.error("Cannot download disk: '{}' for backup id: '{}', backup VM '{}' could not be found.",
+                        getDiskImage().getId(),
+                        getParameters().getBackupId(),
+                        backup.getVmId());
+                return false;
+            }
+
+            // Downloading a cold VM backup disk can be done from the host specified by the user,
+            // or from any active host otherwise.
+            if (getBackupVm().isDown()) {
+                return super.initializeVds();
+            }
+
+            VDS vds = vdsDao.get(getBackupVm().getRunOnVds());
             if (vds == null) {
                 // Can happen when the VM crashed and Not running on any host.
                 log.warn("Cannot download disk id: '{}' backup id: '{}', the VM is down.",
@@ -1071,12 +1119,24 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
                 getStorageDomain().getStorageType().isFileDomain();
     }
 
+    private boolean isBackup() {
+        return getParameters().getBackupId() != null;
+    }
+
+    private boolean isLiveBackup() {
+        return isBackup() && getBackupVm() != null && !getBackupVm().isDown();
+    }
+
     private boolean isSupportsDirtyExtents() {
-        if (getParameters().getBackupId() == null || getParameters().getTransferType() != TransferType.Download) {
+        if (!isBackup() || getParameters().getTransferType() != TransferType.Download) {
             return false;
         }
-        VmBackup vmBackup = getVmBackup();
-        return vmBackup != null && vmBackup.isIncremental();
+        VmBackup backup = getBackup();
+        return backup != null && backup.isIncremental();
+    }
+
+    private boolean usingNbdServer() {
+        return !isLiveBackup() && getTransferBackend() == ImageTransferBackend.NBD;
     }
 
     private boolean addImageTicketToProxy(Guid imagedTicketId, String hostUri) {
@@ -1209,7 +1269,7 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
         }
 
         // Stopping NBD server if necessary
-        if (getTransferBackend() == ImageTransferBackend.NBD) {
+        if (usingNbdServer()) {
             stopNbdServer(entity.getVdsId(), entity.getImagedTicketId());
         }
 
