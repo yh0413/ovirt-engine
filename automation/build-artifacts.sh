@@ -88,7 +88,7 @@ rpmbuild \
     -ts ./*.gz
 
 # install any build requirements
-yum-builddep output/*src.rpm
+yum-builddep -y output/*src.rpm
 
 # build minimal rpms for CI, fuller ones for releases
 BUILD_UT=0
