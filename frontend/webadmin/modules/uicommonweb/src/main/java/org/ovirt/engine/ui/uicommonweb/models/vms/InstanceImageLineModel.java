@@ -83,7 +83,7 @@ public class InstanceImageLineModel extends EntityModel {
         String diskName = disk.getDiskAlias();
         String size = Long.toString(disk.getSize());
 
-        if (disk.getDiskStorageType() == DiskStorageType.IMAGE || disk.getDiskStorageType() == DiskStorageType.CINDER
+        if (disk.getDiskStorageType() == DiskStorageType.IMAGE
                 || disk.getDiskStorageType() == DiskStorageType.MANAGED_BLOCK_STORAGE) {
             size = Long.toString(((DiskImage) disk).getSizeInGigabytes());
         }
@@ -228,6 +228,7 @@ public class InstanceImageLineModel extends EntityModel {
             realOrFakeVm.setClusterId(parentModel.getUnitVmModel().getSelectedCluster().getId());
             realOrFakeVm.setStoragePoolId(parentModel.getUnitVmModel().getSelectedDataCenter().getId());
             realOrFakeVm.setClusterCompatibilityVersion(compatibilityVersion);
+            realOrFakeVm.setBiosType(parentModel.getUnitVmModel().getBiosType().getSelectedItem());
             realOrFakeVm.setClusterBiosType(biosType);
         }
 
@@ -289,7 +290,6 @@ public class InstanceImageLineModel extends EntityModel {
 
                     Disk disk = super.getDisk();
                     if (disk.getDiskStorageType() == DiskStorageType.IMAGE
-                            || disk.getDiskStorageType() == DiskStorageType.CINDER
                             || disk.getDiskStorageType() == DiskStorageType.MANAGED_BLOCK_STORAGE) {
                         ((DiskImage) disk).setActive(true);
                     }
@@ -311,6 +311,7 @@ public class InstanceImageLineModel extends EntityModel {
         vm.setClusterId(parentModel.getUnitVmModel().getSelectedCluster().getId());
         vm.setStoragePoolId(parentModel.getUnitVmModel().getSelectedDataCenter().getId());
         vm.setClusterCompatibilityVersion(parentModel.getUnitVmModel().getSelectedCluster().getCompatibilityVersion());
+        vm.setBiosType(parentModel.getUnitVmModel().getBiosType().getSelectedItem());
         vm.setClusterBiosType(parentModel.getUnitVmModel().getSelectedCluster().getBiosType());
         vm.setVmOs(parentModel.getUnitVmModel().getOSType().getSelectedItem());
 

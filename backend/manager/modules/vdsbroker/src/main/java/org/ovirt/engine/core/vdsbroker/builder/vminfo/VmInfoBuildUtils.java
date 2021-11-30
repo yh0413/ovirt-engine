@@ -41,12 +41,12 @@ import org.ovirt.engine.core.common.businessentities.GraphicsInfo;
 import org.ovirt.engine.core.common.businessentities.GraphicsType;
 import org.ovirt.engine.core.common.businessentities.HostDevice;
 import org.ovirt.engine.core.common.businessentities.HostDeviceView;
-import org.ovirt.engine.core.common.businessentities.NumaTuneMode;
 import org.ovirt.engine.core.common.businessentities.StorageDomainStatic;
 import org.ovirt.engine.core.common.businessentities.StorageServerConnections;
 import org.ovirt.engine.core.common.businessentities.SupportedAdditionalClusterFeature;
 import org.ovirt.engine.core.common.businessentities.UsbControllerModel;
 import org.ovirt.engine.core.common.businessentities.VM;
+import org.ovirt.engine.core.common.businessentities.VdsDynamic;
 import org.ovirt.engine.core.common.businessentities.VdsNumaNode;
 import org.ovirt.engine.core.common.businessentities.VdsStatistics;
 import org.ovirt.engine.core.common.businessentities.VgpuPlacement;
@@ -102,6 +102,7 @@ import org.ovirt.engine.core.dao.VdsDynamicDao;
 import org.ovirt.engine.core.dao.VdsNumaNodeDao;
 import org.ovirt.engine.core.dao.VdsStaticDao;
 import org.ovirt.engine.core.dao.VdsStatisticsDao;
+import org.ovirt.engine.core.dao.VmDao;
 import org.ovirt.engine.core.dao.VmDeviceDao;
 import org.ovirt.engine.core.dao.VmNumaNodeDao;
 import org.ovirt.engine.core.dao.network.NetworkClusterDao;
@@ -152,6 +153,7 @@ public class VmInfoBuildUtils {
     private final NetworkQoSDao networkQosDao;
     private final StorageQosDao storageQosDao;
     private final VmDeviceDao vmDeviceDao;
+    private final VmDao vmDao;
     private final VnicProfileDao vnicProfileDao;
     private final VmNicFilterParameterDao vmNicFilterParameterDao;
     private final AuditLogDirector auditLogDirector;
@@ -186,6 +188,7 @@ public class VmInfoBuildUtils {
             NetworkQoSDao networkQosDao,
             StorageQosDao storageQosDao,
             VmDeviceDao vmDeviceDao,
+            VmDao vmDao,
             VnicProfileDao vnicProfileDao,
             VmNicFilterParameterDao vmNicFilterParameterDao,
             NetworkClusterDao networkClusterDao,
@@ -209,6 +212,7 @@ public class VmInfoBuildUtils {
         this.networkQosDao = Objects.requireNonNull(networkQosDao);
         this.storageQosDao = Objects.requireNonNull(storageQosDao);
         this.vmDeviceDao = Objects.requireNonNull(vmDeviceDao);
+        this.vmDao = Objects.requireNonNull(vmDao);
         this.vnicProfileDao = Objects.requireNonNull(vnicProfileDao);
         this.vmNicFilterParameterDao = Objects.requireNonNull(vmNicFilterParameterDao);
         this.networkClusterDao = Objects.requireNonNull(networkClusterDao);
@@ -846,23 +850,14 @@ public class VmInfoBuildUtils {
     }
 
     public int getVmTimeZone(VM vm) {
-        // get vm timezone
         String timeZone = getTimeZoneForVm(vm);
+        String javaZoneId = osRepository.isWindows(vm.getOs()) ? WindowsJavaTimezoneMapping.get(timeZone) : timeZone;
+        long now = new Date().getTime();
+        return javaZoneToOffset(javaZoneId, now);
+    }
 
-        final String javaZoneId;
-        if (osRepository.isWindows(vm.getOs())) {
-            // convert to java & calculate offset
-            javaZoneId = WindowsJavaTimezoneMapping.get(timeZone);
-        } else {
-            javaZoneId = timeZone;
-        }
-
-        int offset = 0;
-        if (javaZoneId != null) {
-            offset = TimeZone.getTimeZone(javaZoneId).getOffset(
-                    new Date().getTime()) / 1000;
-        }
-        return offset;
+    public static int javaZoneToOffset(String javaZoneId, long now) {
+        return javaZoneId != null ? TimeZone.getTimeZone(javaZoneId).getOffset(now) / 1000 : 0;
     }
 
     public String getEmulatedMachineByClusterArch(ArchitectureType arch) {
@@ -1332,16 +1327,16 @@ public class VmInfoBuildUtils {
         return true;
     }
 
-    public String getMatchingNumaNode(VM vm, Map<String, Object> numaTuneSetting, MemoizingSupplier<List<VmNumaNode>> vmNumaNodesSupplier, String preferredNode) {
+    public String getMatchingNumaNode(Map<String, Object> numaTuneSetting,
+            MemoizingSupplier<List<VmNumaNode>> vmNumaNodesSupplier, String preferredNode) {
         String node = null;
-        NumaTuneMode numaTune = vm.getNumaTuneMode();
         if (numaTuneSetting != null) {
             @SuppressWarnings("unchecked")
             List<Map<String, String>> memNodes = (List<Map<String, String>>) numaTuneSetting.get(VdsProperties.NUMA_TUNE_MEMNODES);
             if (memNodes != null) {
                 for (Map<String, String> memnode : memNodes) {
-                    if (memnode.get((String) VdsProperties.NUMA_TUNE_NODESET) == preferredNode) {
-                        node = (String) memnode.get(VdsProperties.NUMA_TUNE_VM_NODE_INDEX);
+                    if (memnode.get(VdsProperties.NUMA_TUNE_NODESET).equals(preferredNode)) {
+                        node = memnode.get(VdsProperties.NUMA_TUNE_VM_NODE_INDEX);
                         break;
                     }
                 }
@@ -1355,6 +1350,14 @@ public class VmInfoBuildUtils {
             }
         }
         return node;
+    }
+
+    public String tpmData(Guid vmId) {
+        return vmDao.getTpmData(vmId).getFirst();
+    }
+
+    public String nvramData(Guid vmId) {
+        return vmDao.getNvramData(vmId).getFirst();
     }
 
     public List<VmDevice> getVmDevices(Guid vmId) {
@@ -1393,6 +1396,10 @@ public class VmInfoBuildUtils {
         return vnicProfileDao.get(vnicProfileId);
     }
 
+    public List<VnicProfile> getAllVnicProfiles() {
+        return vnicProfileDao.getAll();
+    }
+
     public VdsStatistics getVdsStatistics(Guid hostId) {
         return vdsStatisticsDao.get(hostId);
     }
@@ -1401,13 +1408,6 @@ public class VmInfoBuildUtils {
         return hostDeviceDao.getHostDevicesByHostId(hostId)
                 .stream()
                 .collect(Collectors.toMap(HostDevice::getDeviceName, device -> device));
-    }
-
-    public boolean isHostIncrementalBackupEnabled(Guid hostId) {
-        if (hostId != null) {
-            return vdsDynamicDao.get(hostId).isBackupEnabled();
-        }
-        return false;
     }
 
     public void refreshVmDevices(Guid vmId) {
@@ -1526,6 +1526,10 @@ public class VmInfoBuildUtils {
         return multiQueueUtils.getOptimalNumOfQueuesPerVnic(numOfCpus);
     }
 
+    public int getNumOfScsiQueues(int numOfDisks, int numOfCpus) {
+        return multiQueueUtils.getNumOfScsiQueues(numOfDisks, numOfCpus);
+    }
+
     public boolean isInterfaceQueuable(VmDevice vmDevice, VmNic vmNic) {
         return multiQueueUtils.isInterfaceQueuable(vmDevice, vmNic);
     }
@@ -1543,7 +1547,7 @@ public class VmInfoBuildUtils {
         return osRepository.getOsUsbControllerModel(
                 vm.getVmOsId(),
                 vm.getCompatibilityVersion(),
-                vm.getCustomBiosType().getChipsetType());
+                vm.getBiosType().getChipsetType());
     }
 
     public boolean isTabletEnabled(VM vm) {
@@ -1576,9 +1580,9 @@ public class VmInfoBuildUtils {
         }
     }
 
-    boolean isKernelFipsMode(Guid vdsGuid) {
-        boolean fips = vdsDynamicDao.get(vdsGuid).isFipsEnabled();
-        log.debug("Kernel FIPS - Guid: {} fips: {}", vdsGuid, fips);
+    boolean isKernelFipsMode(VdsDynamic vds) {
+        boolean fips = vds.isFipsEnabled();
+        log.debug("Kernel FIPS - Guid: {} fips: {}", vds.getId(), fips);
         return fips;
     }
 
@@ -1600,12 +1604,8 @@ public class VmInfoBuildUtils {
         return new IgnitionHandler(vmInit, ignitionVersion).getFileData();
     }
 
-    String getTscFrequency(Guid vdsGuid) {
-        return vdsDynamicDao.get(vdsGuid).getTscFrequency();
-    }
-
-    String getCpuFlags(Guid vdsGuid) {
-        return vdsDynamicDao.get(vdsGuid).getCpuFlags();
+    VdsDynamic getVdsDynamic(Guid vdsGuid) {
+        return vdsDynamicDao.get(vdsGuid);
     }
 
     private Long alignDown(Long size, Long alignment) {
@@ -1645,11 +1645,22 @@ public class VmInfoBuildUtils {
         for (VmDevice device : getVmDevices(vm.getId())) {
             if (device.isPlugged() && device.getType() == VmDeviceGeneralType.HOSTDEV) {
                 HostDevice hostDevice = hostDevicesSupplier.get().get(device.getDevice());
-                if (hostDevice.getCapability().equals("nvdimm")) {
+                if (hostDevice != null && "nvdimm".equals(hostDevice.getCapability())) {
                     size += getNvdimmAlignedSize(vm, hostDevice);
                 }
             }
         }
         return size;
+    }
+
+    public static int maxNumberOfVcpus(VM vm) {
+        return FeatureSupported.supportedInConfig(ConfigValues.HotPlugCpuSupported, vm.getCompatibilityVersion(),
+                vm.getClusterArch()) ? VmCpuCountHelper.calcMaxVCpu(vm, vm.getCompatibilityVersion())
+                        : vm.getNumOfCpus();
+    }
+
+    public static boolean isVmWithHighNumberOfX86Vcpus(VM vm) {
+        return vm.getClusterArch().getFamily() == ArchitectureType.x86
+                && maxNumberOfVcpus(vm) >= VmCpuCountHelper.HIGH_NUMBER_OF_X86_VCPUS;
     }
 }

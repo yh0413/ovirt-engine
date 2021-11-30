@@ -125,6 +125,12 @@ public interface UIConstants extends Constants {
 
     String editNextRunConfigurationTitle();
 
+    String confirmExternalDataRemovalTitle();
+
+    String confirmTpmDataRemovalMessage();
+
+    String confirmNvramDataRemovalMessage();
+
     String configurationChangesForHighPerformanceVmTitle();
 
     String configurationChangesForHighPerformancePoolTitle();
@@ -599,6 +605,8 @@ public interface UIConstants extends Constants {
 
     String rebootVirtualMachinesTitle();
 
+    String resetVirtualMachinesTitle();
+
     String changeCDTitle();
 
     String consoleDisconnectedTitle();
@@ -738,6 +746,8 @@ public interface UIConstants extends Constants {
     String areYouSureYouWantToStopTheFollowingVirtualMachinesMsg();
 
     String areYouSureYouWantToRebootTheFollowingVirtualMachinesMsg();
+
+    String areYouSureYouWantToResetTheFollowingVirtualMachinesMsg();
 
     String thisFieldMustContainIpv4AddressInFormatMsg();
 
@@ -1173,8 +1183,6 @@ public interface UIConstants extends Constants {
 
     String noActiveStorageDomainsInDC();
 
-    String noCinderStorageDomainsInDC();
-
     String noManagedBlockDomainsInDC();
 
     String relevantDCnotActive();
@@ -1367,6 +1375,8 @@ public interface UIConstants extends Constants {
 
     String invalidBrickDirectoryAtleastTwoCharacterseMsg();
 
+    String invalidKey();
+
     String emptyBrickDirectoryMsg();
 
     String emptyServerBrickMsg();
@@ -1501,15 +1511,17 @@ public interface UIConstants extends Constants {
 
     String errorTemplateCannotBeFoundMessage();
 
-    String loadingFingerprint();
+    String loadingPublicKey();
 
-    String errorLoadingFingerprint();
+    String errorLoadingHostSshPublicKey();
 
-    String successLoadingFingerprint();
+    String errorLoadingPublicKey();
 
-    String fingerprintNotVerified();
+    String successLoadingPublicKey();
 
-    String fingerprintAddressError();
+    String sshPublicKeyNotVerified();
+
+    String publicKeyAddressError();
 
     String manageGlusterSwiftTitle();
 
@@ -1583,6 +1595,8 @@ public interface UIConstants extends Constants {
 
     String cpuPinningUnavailable();
 
+    String cpuChangesConflictWithAutoPin();
+
     String portMirroringNotSupportedExternalNetworks();
 
     String passthroughNotSupportedExternalNetworks();
@@ -1596,6 +1610,8 @@ public interface UIConstants extends Constants {
     String networkFilterNotChangedIfPassthrough();
 
     String passthroughNotChangedIfUsedByVms();
+
+    String failoverNotChangedIfUsedByVms();
 
     String vmLowPriority();
 
@@ -1657,11 +1673,7 @@ public interface UIConstants extends Constants {
 
     String hostChangeClusterTimeOut();
 
-    String hostNonMigratable();
-
     String noHaWhenHostedEngineUsed();
-
-    String hostIsHa();
 
     String trustedServiceDisabled();
 
@@ -1925,9 +1937,9 @@ public interface UIConstants extends Constants {
 
     String eitherTotalOrReadWriteCanHaveValues();
 
-    String detachWarnningNote();
+    String detachWarningNote();
 
-    String removeDataCenterWarnningNote();
+    String removeDataCenterWarningNote();
 
     String back();
 
@@ -2007,7 +2019,7 @@ public interface UIConstants extends Constants {
 
     String geoReplicationRecommendedConfigViolation();
 
-    String notSupportedForCinderOrManagedBlockDisks();
+    String notSupportedForManagedBlockDisks();
 
     String registerDisksTitle();
 
@@ -2123,8 +2135,6 @@ public interface UIConstants extends Constants {
 
     String forceRemoveProvider();
 
-    String forceRemoveCinderProvider();
-
     String both();
 
     String runningOnCurrentHost();
@@ -2148,6 +2158,8 @@ public interface UIConstants extends Constants {
     String clusterSwitchChangeDisabled();
 
     String externalNetworkInfo();
+
+    String failoverVnicProfile();
 
     String consolidatedTitle();
 
@@ -2186,4 +2198,10 @@ public interface UIConstants extends Constants {
     String chipsetDependentVmDeviceChangesMessage();
 
     String mixedTargetDomains();
+
+    String uefiRequired();
+
+    String guestOsVersionNotSupported();
+
+    String sealWindowsUnavailable();
 }

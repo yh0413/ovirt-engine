@@ -4,7 +4,7 @@
   <parent>
     <groupId>org.ovirt.engine.core</groupId>
     <artifactId>manager-modules</artifactId>
-    <version>4.4.3.11</version>
+    <version>4.4.9.5</version>
   </parent>
 
   <artifactId>utils</artifactId>
@@ -103,6 +103,15 @@
        <groupId>org.codehaus.jackson</groupId>
        <artifactId>jackson-mapper-asl</artifactId>
     </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+
 
     <!-- This is not used directly by the source, but the
          compiler some how requires it indirectly: -->

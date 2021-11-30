@@ -12,10 +12,11 @@ import os
 import tempfile
 import time
 
-from M2Crypto import BIO
-from M2Crypto import EVP
-from M2Crypto import RSA
-from M2Crypto import X509
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 from otopi import base
 from otopi import constants as otopicons
@@ -23,6 +24,7 @@ from otopi import filetransaction
 from otopi import util
 
 from ovirt_engine_setup import constants as osetupcons
+from ovirt_engine_setup.engine_common import pki_utils
 
 
 def _(m):
@@ -206,19 +208,38 @@ class EnrollCert(base.Base):
     def logger(self):
         return self._plugin.logger
 
-    def _genCsr(self):
-        rsa = RSA.gen_key(self._key_size, 65537)
-        rsapem = rsa.as_pem(cipher=None)
-        evp = EVP.PKey()
-        evp.assign_rsa(rsa)
-        pub_bio = BIO.MemoryBuffer()
-        rsa.save_pub_key_bio(pub_bio)
-        pubkeypem = pub_bio.getvalue()
-        rsa = None  # should not be freed here
-        csr = X509.Request()
-        csr.set_pubkey(evp)
-        csr.sign(evp, 'sha1')
-        return rsapem, csr.as_pem(), pubkeypem
+    def _genCsr(self, private_key=None):
+        if private_key is None:
+            private_key = rsa.generate_private_key(
+                public_exponent=65537,
+                key_size=self._key_size,
+                backend=default_backend(),
+            )
+        rsa_private_key_pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+        request = x509.CertificateSigningRequestBuilder(
+        ).subject_name(
+            x509.Name([
+                x509.NameAttribute(x509.oid.NameOID.COMMON_NAME, u'/'),
+            ])
+        ).sign(
+            private_key=private_key,
+            # TODO Replace with SHA256 if/when it's safe
+            algorithm=hashes.SHA1(),
+            backend=default_backend(),
+        )
+        request_pem = request.public_bytes(
+            encoding=serialization.Encoding.PEM
+        )
+        public_key_pem = request.public_key(
+        ).public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        return rsa_private_key_pem, request_pem, public_key_pem
 
     def _enroll_cert_auto_ssh(self):
         cert = None
@@ -248,9 +269,14 @@ class EnrollCert(base.Base):
                         remote_name=self._remote_name,
                     ),
                 )
-                cert_pubkey = X509.load_cert_string(
-                    cert
-                ).get_pubkey().get_rsa().as_pem(cipher=None)
+                cert_pubkey = x509.load_pem_x509_certificate(
+                    cert,
+                    backend=default_backend(),
+                ).public_key(
+                ).public_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PublicFormat.SubjectPublicKeyInfo,
+                )
                 goodcert = self._pubkey == cert_pubkey
                 if not goodcert:
                     self.logger.error(
@@ -337,9 +363,14 @@ class EnrollCert(base.Base):
             try:
                 with open(filename, 'rb') as f:
                     cert = f.read()
-                cert_pubkey = X509.load_cert_string(
-                    cert
-                ).get_pubkey().get_rsa().as_pem(cipher=None)
+                cert_pubkey = x509.load_pem_x509_certificate(
+                    cert,
+                    backend=default_backend(),
+                ).public_key(
+                ).public_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PublicFormat.SubjectPublicKeyInfo,
+                )
                 goodcert = self._pubkey == cert_pubkey
                 if not goodcert:
                     self.logger.error(
@@ -372,15 +403,36 @@ class EnrollCert(base.Base):
         pass
 
     def enroll_cert(self):
-        cert = None
-
         self.logger.debug('enroll_cert')
-        self._need_cert = not os.path.exists(self._cert_file)
-        self._need_key = not os.path.exists(self._key_file)
 
-        if self._need_key:
-            self._key, self._csr, self._pubkey = self._genCsr()
+        cert = None
+        self._need_cert = True
+        if os.path.exists(self._cert_file):
+            self._need_cert = False
+            cert = pki_utils.x509_load_cert(self._cert_file)
+            if pki_utils.ok_to_renew_cert(
+                self.logger,
+                cert,
+                None,
+                self._base_name,
+                True,
+            ):
+                self._need_cert = True
+
+        private_key = None
+        self._need_key = True
+        if os.path.exists(self._key_file):
+            with open(self._key_file, 'rb') as f:
+                private_key = serialization.load_pem_private_key(
+                    f.read(),
+                    password=None,
+                    backend=default_backend(),
+                )
+            self._need_key = False
+        else:
             self._need_cert = True
+
+        self._key, self._csr, self._pubkey = self._genCsr(private_key)
 
         if self._need_cert:
             self._remote_name = '{name}-{fqdn}'.format(

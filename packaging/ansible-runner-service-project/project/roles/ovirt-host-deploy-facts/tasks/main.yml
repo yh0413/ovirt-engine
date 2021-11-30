@@ -1,29 +1,17 @@
 ---
-- include_tasks: host-os.yml
+- include_tasks: "{{ item }}.yml"
+  with_items:
+    - host-os
+    - av-setup
+    - cinderlib-setup
 
-- block:
-  - name: Reset configuration of advanced virtualization module
-    shell: dnf -y module reset virt
-    tags:
-      - skip_ansible_lint # E305
-
-  - name: Enable advanced virtualization module for relevant OS version
-    shell: "dnf -y module enable virt:{{ ansible_distribution_version }}"
-    tags:
-      - skip_ansible_lint # E305
-  when:
-    - host_deploy_origin_type != ovirt_origin_type
-    - el_ver|int >= 8
-    - not node_host|bool
-    - not vdsm_preinstalled|bool
-
-- name: Install Python3 for CentOS/RHEL8 hosts
+- name: Ensure Python3 is installed for CentOS/RHEL8 hosts
   yum:
     name: python3
     state: present
   when: el_ver|int >= 8
 
-- name: Set facts
+- name: Setup Ansible Python interpreter
   set_fact:
     ansible_python_interpreter : "{{ '/usr/bin/python3'
         if (fc_ver|int > 0 or el_ver|int >= 8)

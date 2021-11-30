@@ -979,7 +979,8 @@ CREATE OR REPLACE FUNCTION InsertVmInterface (
     v_vnic_profile_id UUID,
     v_vm_guid UUID,
     v_type INT,
-    v_linked BOOLEAN
+    v_linked BOOLEAN,
+    v_synced BOOLEAN
     )
 RETURNS VOID AS $PROCEDURE$
 BEGIN
@@ -991,7 +992,8 @@ BEGIN
         vnic_profile_id,
         vm_guid,
         type,
-        linked
+        linked,
+        synced
         )
     VALUES (
         v_id,
@@ -1001,7 +1003,8 @@ BEGIN
         v_vnic_profile_id,
         v_vm_guid,
         v_type,
-        v_linked
+        v_linked,
+        v_synced
         );
 END;$PROCEDURE$
 LANGUAGE plpgsql;
@@ -1014,7 +1017,8 @@ CREATE OR REPLACE FUNCTION UpdateVmInterface (
     v_vnic_profile_id UUID,
     v_vm_guid UUID,
     v_type INT,
-    v_linked BOOLEAN
+    v_linked BOOLEAN,
+    v_synced BOOLEAN
     )
 RETURNS VOID AS $PROCEDURE$
 BEGIN
@@ -1026,7 +1030,8 @@ BEGIN
         vm_guid = v_vm_guid,
         type = v_type,
         _update_date = LOCALTIMESTAMP,
-        linked = v_linked
+        linked = v_linked,
+        synced = v_synced
     WHERE id = v_id;
 END;$PROCEDURE$
 LANGUAGE plpgsql;
@@ -1070,6 +1075,30 @@ BEGIN
 
     SELECT *
     FROM vm_interface;
+END;$PROCEDURE$
+LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION GetActiveVmInterfacesByNetworkId (v_network_id UUID)
+RETURNS SETOF vm_interface STABLE AS $PROCEDURE$
+BEGIN
+    RETURN QUERY
+
+    SELECT vm_interface.*
+    FROM vm_interfaces_plugged_on_vm_not_down_view as vm_interface
+    INNER JOIN vnic_profiles
+        ON vm_interface.vnic_profile_id = vnic_profiles.id
+    WHERE vnic_profiles.network_id = v_network_id;
+END;$PROCEDURE$
+LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION GetActiveVmInterfacesByProfileId (v_profile_id UUID)
+RETURNS SETOF vm_interface STABLE AS $PROCEDURE$
+BEGIN
+    RETURN QUERY
+
+    SELECT vm_interface.*
+    FROM vm_interfaces_plugged_on_vm_not_down_view as vm_interface
+    WHERE vm_interface.vnic_profile_id = v_profile_id;
 END;$PROCEDURE$
 LANGUAGE plpgsql;
 
@@ -1731,16 +1760,16 @@ CREATE OR REPLACE FUNCTION GetvmStaticByGroupIdAndNetwork (
     v_groupId UUID,
     v_networkName VARCHAR(50)
     )
-RETURNS SETOF vm_static STABLE AS $PROCEDURE$
+RETURNS SETOF vm_static_view STABLE AS $PROCEDURE$
 BEGIN
     RETURN QUERY
 
-    SELECT vm_static.*
-    FROM vm_static
+    SELECT vm_static_view.*
+    FROM vm_static_view
     INNER JOIN vm_interface_view
-        ON vm_static.vm_guid = vm_interface_view.vm_guid
+        ON vm_static_view.vm_guid = vm_interface_view.vm_guid
             AND network_name = v_networkName
-            AND vm_static.cluster_id = v_groupId;
+            AND vm_static_view.cluster_id = v_groupId;
 END;$PROCEDURE$
 LANGUAGE plpgsql;
 
@@ -1864,7 +1893,8 @@ CREATE OR REPLACE FUNCTION InsertVnicProfile (
     v_migratable BOOLEAN,
     v_custom_properties TEXT,
     v_description TEXT,
-    v_network_filter_id UUID
+    v_network_filter_id UUID,
+    v_failover_vnic_profile_id UUID
     )
 RETURNS VOID AS $PROCEDURE$
 BEGIN
@@ -1878,7 +1908,8 @@ BEGIN
         migratable,
         custom_properties,
         description,
-        network_filter_id
+        network_filter_id,
+        failover_vnic_profile_id
         )
     VALUES (
         v_id,
@@ -1890,7 +1921,8 @@ BEGIN
         v_migratable,
         v_custom_properties,
         v_description,
-        v_network_filter_id
+        v_network_filter_id,
+        v_failover_vnic_profile_id
         );
 END;$PROCEDURE$
 LANGUAGE plpgsql;
@@ -1905,7 +1937,8 @@ CREATE OR REPLACE FUNCTION UpdateVnicProfile (
     v_migratable BOOLEAN,
     v_custom_properties TEXT,
     v_description TEXT,
-    v_network_filter_id UUID
+    v_network_filter_id UUID,
+    v_failover_vnic_profile_id UUID
     )
 RETURNS VOID AS $PROCEDURE$
 BEGIN
@@ -1920,7 +1953,8 @@ BEGIN
         custom_properties = v_custom_properties,
         description = v_description,
         _update_date = LOCALTIMESTAMP,
-        network_filter_id = v_network_filter_id
+        network_filter_id = v_network_filter_id,
+        failover_vnic_profile_id = v_failover_vnic_profile_id
     WHERE id = v_id;
 END;$PROCEDURE$
 LANGUAGE plpgsql;
@@ -1957,6 +1991,17 @@ BEGIN
     SELECT *
     FROM vnic_profiles
     WHERE network_id = v_network_id;
+END;$PROCEDURE$
+LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION GetVnicProfilesByFailoverVnicProfileId (v_failover_vnic_profile_id UUID)
+RETURNS SETOF vnic_profiles STABLE AS $PROCEDURE$
+BEGIN
+RETURN QUERY
+
+SELECT *
+FROM vnic_profiles
+WHERE failover_vnic_profile_id = v_failover_vnic_profile_id;
 END;$PROCEDURE$
 LANGUAGE plpgsql;
 
@@ -2806,5 +2851,27 @@ BEGIN
         binding_host_id
         )
     SELECT v_vds_id, unnest(v_plugin_types), unnest(v_provider_binding_host_ids);
+END;$PROCEDURE$
+LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION GetVmIdsForVnicsOutOfSync (v_ids UUID[])
+RETURNS SETOF UUID STABLE AS $PROCEDURE$
+BEGIN
+    RETURN QUERY
+
+    SELECT DISTINCT vm_guid
+    FROM vm_interface
+    WHERE NOT synced
+    AND vm_guid = ANY(v_ids);
+END;$PROCEDURE$
+LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION SetVmInterfacesSyncedForVm (v_vm_id UUID)
+RETURNS VOID AS $PROCEDURE$
+BEGIN
+    UPDATE vm_interface
+    SET synced = true
+    WHERE vm_interface.vm_guid = v_vm_id;
+
 END;$PROCEDURE$
 LANGUAGE plpgsql;

@@ -1,6 +1,7 @@
 package org.ovirt.engine.core.vdsbroker.vdsbroker;
 
 import java.security.cert.Certificate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
@@ -8,6 +9,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.ovirt.engine.core.common.action.VmExternalDataKind;
 import org.ovirt.engine.core.common.businessentities.storage.ImageTicket;
 import org.ovirt.engine.core.compat.Guid;
 import org.ovirt.engine.core.vdsbroker.gluster.GlusterHookContentInfoReturn;
@@ -41,7 +43,6 @@ import org.ovirt.engine.core.vdsbroker.irsbroker.StoragePoolInfo;
 import org.ovirt.engine.core.vdsbroker.irsbroker.UUIDListReturn;
 import org.ovirt.engine.core.vdsbroker.irsbroker.VmBackupInfo;
 import org.ovirt.engine.core.vdsbroker.irsbroker.VmCheckpointIds;
-import org.ovirt.engine.core.vdsbroker.irsbroker.VmCheckpointInfo;
 import org.ovirt.vdsm.jsonrpc.client.BrokerCommandCallback;
 
 public class NullVdsServer implements IVdsServer {
@@ -91,6 +92,10 @@ public class NullVdsServer implements IVdsServer {
     }
 
     @Override public StatusOnlyReturn shutdown(String vmId, String timeout, String message, boolean reboot) {
+        return null;
+    }
+
+    @Override public StatusOnlyReturn reset(String vmId) {
         return null;
     }
 
@@ -175,6 +180,10 @@ public class NullVdsServer implements IVdsServer {
     }
 
     @Override public VMInfoListReturn getAllVmStats() {
+        return null;
+    }
+
+    @Override public VmExternalDataReturn getVmExternalData(String vmId, VmExternalDataKind kind, boolean forceUpdate) {
         return null;
     }
 
@@ -957,7 +966,7 @@ public class NullVdsServer implements IVdsServer {
         return null;
     }
 
-    @Override public VmCheckpointIds redefineVmCheckpoints(String vmId, Map<String, Object>[] checkpoints) {
+    @Override public VmCheckpointIds redefineVmCheckpoints(String vmId, Collection<Map<String, Object>> checkpoints) {
         return null;
     }
 
@@ -970,7 +979,17 @@ public class NullVdsServer implements IVdsServer {
     }
 
     @Override
-    public VmCheckpointInfo getVmCheckpointsXML(String vmId, String checkpointId) {
+    public StatusOnlyReturn addBitmap(String jobId, Map<String, Object> volInfo, String bitmapName) {
+        return null;
+    }
+
+    @Override
+    public StatusOnlyReturn removeBitmap(String jobId, Map<String, Object> volInfo, String bitmapName) {
+        return null;
+    }
+
+    @Override
+    public StatusOnlyReturn clearBitmaps(String jobId, Map<String, Object> volInfo) {
         return null;
     }
 
@@ -1027,7 +1046,7 @@ public class NullVdsServer implements IVdsServer {
         return null;
     }
 
-    @Override public StatusOnlyReturn sealDisks(String templateId,
+    @Override public StatusOnlyReturn sealDisks(String vmId,
             String jobId,
             String storagePoolId,
             List<Map<String, Object>> images) {
@@ -1064,6 +1083,15 @@ public class NullVdsServer implements IVdsServer {
     }
 
     @Override public StatusOnlyReturn detachManagedBlockStorageVolume(Guid volumeId) {
+        return null;
+    }
+
+    @Override public VDSInfoReturn getLeaseStatus(String leaseUUID, String sdUUID) {
+        return null;
+    }
+
+    @Override
+    public StatusOnlyReturn fenceLeaseJob(String leaseUUID, String sdUUID, Map<String, Object> leaseMetadata) {
         return null;
     }
 

@@ -53,11 +53,10 @@ public class VmUpdater {
         }
 
         VmStatic vmStatic = EntityMapper.toOvirtVm(vm, clusterId);
-        vmStatic.setCustomBiosType(BiosType.Q35_SEA_BIOS);
+        vmStatic.setBiosType(BiosType.Q35_SEA_BIOS);
 
         AddVmParameters params = new AddVmParameters(vmStatic);
         params.setSoundDeviceEnabled(false);
-        params.setBalloonEnabled(false);
         params.setVirtioScsiEnabled(false);
 
         // at some point we may want to call AddUnmanagedVm

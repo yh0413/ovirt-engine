@@ -152,6 +152,16 @@ public class DiskImageDaoImpl extends BaseDao implements DiskImageDao {
     }
 
     @Override
+    public List<Guid> getAllMetadataAndMemoryDisksForStorageDomain(Guid storageDomainId) {
+        MapSqlParameterSource parameterSource = getCustomMapSqlParameterSource()
+                .addValue("storage_domain_id", storageDomainId);
+
+        return getCallsHandler().executeReadList("GetAllMetadataAndMemoryDisksForStorageDomain",
+                createGuidMapper(),
+                parameterSource);
+    }
+
+    @Override
     public List<DiskImage> getImagesWithNoDisk(Guid vmId) {
         MapSqlParameterSource parameterSource = getCustomMapSqlParameterSource()
                 .addValue("vm_id", vmId);
@@ -237,9 +247,9 @@ public class DiskImageDaoImpl extends BaseDao implements DiskImageDao {
             entity.setId(getGuidDefaultEmpty(rs, "image_group_id"));
             entity.setStoragePoolId(getGuid(rs, "storage_pool_id"));
             entity.setReadRate(rs.getInt("read_rate"));
-            entity.setReadOps(rs.getInt("read_ops"));
+            entity.setReadOps(rs.getLong("read_ops"));
             entity.setWriteRate(rs.getInt("write_rate"));
-            entity.setWriteOps(rs.getInt("write_ops"));
+            entity.setWriteOps(rs.getLong("write_ops"));
             entity.setImageTransferPhase(rs.getObject("image_transfer_phase") != null
                     ? ImageTransferPhase.forValue(rs.getInt("image_transfer_phase")) : null);
             entity.setTransferType(TransferType.forValue(rs.getInt("image_transfer_type")));

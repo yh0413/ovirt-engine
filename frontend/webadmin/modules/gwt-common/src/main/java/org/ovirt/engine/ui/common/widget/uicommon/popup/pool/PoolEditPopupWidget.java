@@ -62,6 +62,7 @@ public class PoolEditPopupWidget extends PoolNewPopupWidget {
 
         templateWithVersionEditor.setEnabled(true);
 
+        isSealedEditor.setEnabled(true);
         multiQueues.setEnabled(true);
     }
 
@@ -79,7 +80,8 @@ public class PoolEditPopupWidget extends PoolNewPopupWidget {
                 update(foremanTab, hiddenField()).
                 update(editPoolEditMaxAssignedVmsPerUserRow, simpleField()).
                 update(templateVersionNameEditor, hiddenField()).
-                update(affinityTab, hiddenField());
+                update(affinityTab, hiddenField()).
+                update(autoPinningPolicyRow, hiddenField());
     }
 
 }

@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.locks.Lock;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -27,6 +28,7 @@ import org.ovirt.engine.core.bll.quota.QuotaClusterConsumptionParameter;
 import org.ovirt.engine.core.bll.quota.QuotaConsumptionParameter;
 import org.ovirt.engine.core.bll.quota.QuotaSanityParameter;
 import org.ovirt.engine.core.bll.quota.QuotaVdsDependent;
+import org.ovirt.engine.core.bll.snapshots.SnapshotVmConfigurationHelper;
 import org.ovirt.engine.core.bll.storage.domain.IsoDomainListSynchronizer;
 import org.ovirt.engine.core.bll.tasks.interfaces.CommandCallback;
 import org.ovirt.engine.core.bll.utils.IconUtils;
@@ -55,8 +57,8 @@ import org.ovirt.engine.core.common.action.VmNumaNodeOperationParameters;
 import org.ovirt.engine.core.common.action.WatchdogParameters;
 import org.ovirt.engine.core.common.businessentities.ActionGroup;
 import org.ovirt.engine.core.common.businessentities.ArchitectureType;
+import org.ovirt.engine.core.common.businessentities.AutoPinningPolicy;
 import org.ovirt.engine.core.common.businessentities.BiosType;
-import org.ovirt.engine.core.common.businessentities.Cluster;
 import org.ovirt.engine.core.common.businessentities.DisplayType;
 import org.ovirt.engine.core.common.businessentities.GraphicsDevice;
 import org.ovirt.engine.core.common.businessentities.GraphicsType;
@@ -85,8 +87,6 @@ import org.ovirt.engine.core.common.businessentities.network.VmNic;
 import org.ovirt.engine.core.common.businessentities.storage.DiskVmElement;
 import org.ovirt.engine.core.common.businessentities.storage.ImageFileType;
 import org.ovirt.engine.core.common.businessentities.storage.RepoImage;
-import org.ovirt.engine.core.common.config.Config;
-import org.ovirt.engine.core.common.config.ConfigValues;
 import org.ovirt.engine.core.common.errors.EngineError;
 import org.ovirt.engine.core.common.errors.EngineException;
 import org.ovirt.engine.core.common.errors.EngineMessage;
@@ -111,7 +111,6 @@ import org.ovirt.engine.core.compat.Version;
 import org.ovirt.engine.core.dal.dbbroker.auditloghandling.AuditLogDirector;
 import org.ovirt.engine.core.dal.dbbroker.auditloghandling.AuditLogable;
 import org.ovirt.engine.core.dal.dbbroker.auditloghandling.AuditLogableImpl;
-import org.ovirt.engine.core.dao.ClusterDao;
 import org.ovirt.engine.core.dao.DiskImageDao;
 import org.ovirt.engine.core.dao.DiskVmElementDao;
 import org.ovirt.engine.core.dao.LabelDao;
@@ -128,7 +127,6 @@ import org.ovirt.engine.core.dao.provider.ProviderDao;
 import org.ovirt.engine.core.dao.scheduling.AffinityGroupDao;
 import org.ovirt.engine.core.utils.ReplacementUtils;
 import org.ovirt.engine.core.vdsbroker.ResourceManager;
-import org.ovirt.engine.core.vdsbroker.monitoring.VmDevicesMonitoring;
 import org.ovirt.engine.core.vdsbroker.vdsbroker.CloudInitHandler;
 
 public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmManagementCommandBase<T>
@@ -145,8 +143,6 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
     @Inject
     private VmSlaPolicyUtils vmSlaPolicyUtils;
     @Inject
-    private VmDevicesMonitoring vmDevicesMonitoring;
-    @Inject
     private ResourceManager resourceManager;
     @Inject
     private InClusterUpgradeValidator clusterUpgradeValidator;
@@ -156,8 +152,6 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
     private DiskImageDao diskImageDao;
     @Inject
     private VmNumaNodeDao vmNumaNodeDao;
-    @Inject
-    private ClusterDao clusterDao;
     @Inject
     private VmStaticDao vmStaticDao;
     @Inject
@@ -193,6 +187,8 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
     private Instance<ConcurrentChildCommandsExecutionCallback> callbackProvider;
     @Inject
     private AffinityValidator affinityValidator;
+    @Inject
+    private SnapshotVmConfigurationHelper snapshotVmConfigurationHelper;
 
     private VM oldVm;
     private boolean quotaSanityOnly = false;
@@ -221,11 +217,12 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
             getVmPropertiesUtils().separateCustomPropertiesToUserAndPredefined(
                     compatibilityVersion, getVm().getStaticData());
         }
+
         vmHandler.updateDefaultTimeZone(getParameters().getVmStaticData());
 
         vmHandler.autoSelectUsbPolicy(getParameters().getVmStaticData());
 
-        vmHandler.autoSelectResumeBehavior(getParameters().getVmStaticData(), getCluster());
+        vmHandler.autoSelectResumeBehavior(getParameters().getVmStaticData());
 
         vmHandler.autoSelectDefaultDisplayType(getVmId(),
                 getParameters().getVmStaticData(),
@@ -234,22 +231,15 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
 
         updateParametersVmFromInstanceType();
 
-        // we always need to verify new or existing numa nodes with the updated VM configuration
-        if (!getParameters().isUpdateNuma()) {
-            getParameters().getVm().setvNumaNodeList(vmNumaNodeDao.getAllVmNumaNodeByVmId(getParameters().getVmId()));
-        }
+        initNuma();
 
         updateUSB();
 
-        if (getParameters().getVmStaticData().getCustomBiosType() == BiosType.CLUSTER_DEFAULT) {
-            getParameters().getVm().setClusterBiosType(getNewCluster().getBiosType());
-        }
-
         getVmDeviceUtils().setCompensationContext(getCompensationContextIfEnabledByCaller());
-    }
 
-    protected Cluster getNewCluster() {
-        return clusterDao.get(getParameters().getVm().getClusterId());
+        if (getParameters().getVmStaticData().getBiosType() == null) {
+            getParameters().getVmStaticData().setBiosType(getVm().getBiosType());
+        }
     }
 
     private VmPropertiesUtils getVmPropertiesUtils() {
@@ -277,6 +267,7 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
         }
 
         newVmStatic = getParameters().getVmStaticData();
+        addCpuAndNumaPinning();
         if (isRunningConfigurationNeeded()) {
             logNameChange();
             vmHandler.createNextRunSnapshot(
@@ -310,6 +301,8 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
                 // fail update vm if some fields could not be copied
                 throw new EngineException(EngineError.FAILED_UPDATE_RUNNING_VM);
             }
+        } else {
+            updateVmNumaNodes();
         }
 
         if ((getVm().isRunningOrPaused() || getVm().isPreviewSnapshot() || getVm().isSuspended()) && !shouldUpdateForHostedEngineOrKubevirt()) {
@@ -322,7 +315,6 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
         }
 
         updateVmNetworks();
-        updateVmNumaNodes();
         updateAffinityGroupsAndLabels();
         if (!updateVmLease()) {
             return;
@@ -350,8 +342,8 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
             updateRngDevice();
             updateGraphicsDevices();
             updateVmHostDevices();
-            updateDeviceAddresses();
-            clearUnmanagedDevices();
+            updateVmDevicesOnEmulatedMachineChange();
+            updateVmDevicesOnChipsetChange();
         }
         iconUtils.removeUnusedIcons(oldIconIds, getCompensationContextIfEnabledByCaller());
         vmHandler.updateVmInitToDB(getParameters().getVmStaticData(), getCompensationContextIfEnabledByCaller());
@@ -364,6 +356,25 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
         compensationStateChanged();
 
         setSucceeded(true);
+    }
+
+    private void updateVmDevicesOnEmulatedMachineChange() {
+        if (isEmulatedMachineChanged()) {
+            log.info("Emulated machine has changed for VM: {} ({}), the device addresses will be removed.",
+                    getVm().getName(),
+                    getVm().getId());
+            getVmDeviceUtils().removeVmDevicesAddress(getVmId());
+            getVmDeviceUtils().resetVmDevicesHash(getVmId());
+        }
+    }
+
+    private void updateVmDevicesOnChipsetChange() {
+        if (isChipsetChanged()) {
+            log.info("BIOS chipset type has changed for VM: {} ({}), the disks and devices will be converted to new chipset.",
+                    getVm().getName(),
+                    getVm().getId());
+            getVmHandler().convertVmToNewChipset(getVmId(), getParameters().getVmStaticData().getBiosType().getChipsetType(), getCompensationContextIfEnabledByCaller());
+        }
     }
 
     private boolean shouldUpdateForHostedEngineOrKubevirt() {
@@ -509,28 +520,6 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
         }
     }
 
-    private void updateDeviceAddresses() {
-        if (isEmulatedMachineChanged() || isChipsetChanged()) {
-            log.info("Emulated machine or BIOS chipset type has changed for VM: {} ({}), clearing device addresses.",
-                    getVm().getName(),
-                    getVm().getId());
-            getVmDeviceUtils().removeVmDevicesAddress(vmDeviceDao.getVmDeviceByVmId(getVmId()));
-
-            VmDevicesMonitoring.Change change = vmDevicesMonitoring.createChange(System.nanoTime());
-            change.updateVm(getVmId(), VmDevicesMonitoring.EMPTY_HASH);
-            change.flush();
-        }
-    }
-
-    private void clearUnmanagedDevices() {
-        if (isChipsetChanged()) {
-            log.info("BIOS chipset type has changed for VM: {} ({}), removing its unmanaged devices.",
-                    getVm().getName(),
-                    getVm().getId());
-            vmDeviceDao.removeAllUnmanagedDevicesByVmId(getVmId());
-        }
-    }
-
     private void hotSetCpus(VM newVm) {
         int currentSockets = getVm().getNumOfSockets();
         int newNumOfSockets = newVm.getNumOfSockets();
@@ -578,18 +567,7 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
         if (VmCommonUtils.isMemoryToBeHotplugged(getVm(), newVm)) {
             // Temporarily setting to the currentMemory. It will be increased in hotPlugMemory().
             newVmStatic.setMemSizeMb(currentMemory);
-
-            final int memoryAddedMb = newAmountOfMemory - currentMemory;
-            final int factor = Config.<Integer>getValue(ConfigValues.HotPlugMemoryBlockSizeMb);
-            final boolean memoryDividable = memoryAddedMb % factor == 0;
-            if (!memoryDividable) {
-                addCustomValue("memoryAdded", String.valueOf(memoryAddedMb));
-                addCustomValue("requiredFactor", String.valueOf(factor));
-                auditLogDirector.log(this, AuditLogType.FAILED_HOT_SET_MEMORY_NOT_DIVIDABLE);
-                return;
-            }
-
-            hotPlugMemory(memoryAddedMb);
+            hotPlugMemory(newAmountOfMemory - currentMemory);
 
             // Hosted engine VM does not care if hotplug failed. The requested memory size is serialized
             // into the OVF store and automatically used during the next HE VM start
@@ -600,7 +578,13 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
         }
 
         if (currentMemory > newAmountOfMemory) {
-            hotUnplugMemory(newVm);
+            final Lock lock = getVmManager().getVmDevicesLock();
+            lock.lock();
+            try {
+                hotUnplugMemory(newVm);
+            } finally {
+                lock.unlock();
+            }
         }
     }
 
@@ -623,8 +607,8 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
                 VmDeviceType.MEMORY);
         final int oldMemoryMb = oldVm.getMemSizeMb();
         final int oldMinMemoryMb = oldVm.getMinAllocatedMem();
-        final List<VmDevice> memoryDevicesToUnplug = MemoryUtils.computeMemoryDevicesToHotUnplug(
-                vmMemoryDevices, oldMemoryMb, getParameters().getVm().getMemSizeMb());
+        final List<VmDevice> memoryDevicesToUnplug = MemoryUtils.computeMemoryDevicesToHotUnplug(vmMemoryDevices,
+                oldMemoryMb, getParameters().getVm().getMemSizeMb(), getVmManager());
         if (memoryDevicesToUnplug.isEmpty()) {
             logNoDeviceToHotUnplug(vmMemoryDevices);
 
@@ -671,6 +655,7 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
             addCustomValue(AUDIT_LOG_NEW_MEMORY_MB, String.valueOf(getParameters().getVm().getMemSizeMb()));
             final String unplugOptions = vmMemoryDevices.stream()
                     .filter(VmDeviceCommonUtils::isMemoryDeviceHotUnpluggable)
+                    .filter(device -> !getVmManager().isDeviceBeingHotUnlugged(device.getDeviceId()))
                     .map(device -> VmDeviceCommonUtils.getSizeOfMemoryDeviceMb(device).get())
                     .map(deviceSize -> String.format(
                             "%dMB (%dMB)",
@@ -928,7 +913,7 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
     }
 
     private void updateVmNumaNodes() {
-        if (!getParameters().isUpdateNuma()) {
+        if (!getParameters().isUpdateNuma() && getParameters().getAutoPinningPolicy() == AutoPinningPolicy.NONE) {
             return;
         }
 
@@ -943,6 +928,18 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
 
         addLogMessages(backend.runInternalAction(ActionType.SetVmNumaNodes, params));
 
+    }
+
+    private void initNuma() {
+        List<VmNumaNode> vNumaNodeList = vmNumaNodeDao.getAllVmNumaNodeByVmId(getParameters().getVmId());
+        if (getVm() != null) {
+            getVm().setvNumaNodeList(vNumaNodeList);
+        }
+
+        // we always need to verify new or existing numa nodes with the updated VM configuration
+        if (!getParameters().isUpdateNuma()) {
+            getParameters().getVm().setvNumaNodeList(vNumaNodeList);
+        }
     }
 
     private void updateUSB() {
@@ -1070,17 +1067,10 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
             return false;
         }
 
-        if (!validate(vmHandler.isCpuSupported(
+        if (vmFromParams.getCustomCpuName() == null && !validate(vmHandler.isCpuSupported(
                 vmFromParams.getVmOsId(),
                 getEffectiveCompatibilityVersion(),
                 getCluster().getCpuName()))) {
-            return false;
-        }
-
-        if (getParameters().getVmStaticData().getDefaultDisplayType() != DisplayType.none &&
-                vmFromParams.getSingleQxlPci() &&
-                !validate(vmHandler.isSingleQxlDeviceLegal(
-                        vmFromParams.getDefaultDisplayType(), vmFromParams.getOs()))) {
             return false;
         }
 
@@ -1128,7 +1118,8 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
         }
 
         if (!validate(VmValidator.validateCpuSockets(vmFromParams.getStaticData(),
-                getEffectiveCompatibilityVersion()))) {
+                getEffectiveCompatibilityVersion(),
+                getCluster().getArchitecture()))) {
             return false;
         }
 
@@ -1157,6 +1148,7 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
                 vmHandler.getResultingVmGraphics(getVmDeviceUtils().getGraphicsTypesOfEntity(getVmId()),
                         getParameters().getGraphicsDevices()),
                 vmFromParams.getDefaultDisplayType(),
+                vmFromParams.getBiosType(),
                 getEffectiveCompatibilityVersion()))) {
             return false;
         }
@@ -1176,7 +1168,8 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
             return failValidation(EngineMessage.QOS_CPU_SHARES_OUT_OF_RANGE);
         }
 
-        if (!VmCpuCountHelper.validateCpuCounts(vmFromParams)) {
+        if (!VmCpuCountHelper.validateCpuCounts(vmFromParams, getEffectiveCompatibilityVersion(),
+                getCluster().getArchitecture())) {
             return failValidation(EngineMessage.TOO_MANY_CPU_COMPONENTS);
         }
 
@@ -1190,6 +1183,32 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
 
         if (!validateMemoryAlignment(getParameters().getVmStaticData())) {
             return false;
+        }
+
+        final int memorySizeChangeMb = vmFromParams.getMemSizeMb() - vmFromDB.getMemSizeMb();
+        if (isHotSetEnabled() && getVm().getStatus() != VMStatus.Down) {
+            if (getVm().isNextRunConfigurationExists()) {
+                final VmStatic nextRunConfigurationStatic = snapshotVmConfigurationHelper
+                        .getVmStaticFromNextRunConfiguration(getVmId());
+                if (nextRunConfigurationStatic != null
+                        && vmFromParams.getMemSizeMb() != nextRunConfigurationStatic.getMemSizeMb()
+                        && nextRunConfigurationStatic.getMemSizeMb() != vmFromDB.getMemSizeMb()) {
+                    return failValidation(EngineMessage.HOT_CHANGE_MEMORY_WITH_NEXT_RUN);
+                }
+            }
+            if (memorySizeChangeMb > 0) {
+                // Check the DB version here to prevent NullPointerException
+                if (!FeatureSupported.hotPlugMemory(vmFromDB.getCompatibilityVersion(), vmFromDB.getClusterArch())) {
+                    return failValidation(EngineMessage.HOT_PLUG_MEMORY_IS_NOT_SUPPORTED);
+                }
+
+                final int factor = getVm().getClusterArch().getHotplugMemorySizeFactorMb();
+                if (memorySizeChangeMb % factor != 0) {
+                    addValidationMessageVariable("memoryAdded", String.valueOf(memorySizeChangeMb));
+                    addValidationMessageVariable("requiredFactor", String.valueOf(factor));
+                    return failValidation(EngineMessage.ACTION_TYPE_FAILED_HOT_PLUGGED_MEMORY_MUST_BE_DIVIDABLE_BY);
+                }
+            }
         }
 
         if (isVirtioScsiEnabled())  {
@@ -1222,16 +1241,16 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
             }
         }
 
-        if (isBalloonEnabled() && !osRepository.isBalloonEnabled(getParameters().getVmStaticData().getOsId(),
-                getEffectiveCompatibilityVersion())) {
-            addValidationMessageVariable("clusterArch", getCluster().getArchitecture());
-            return failValidation(EngineMessage.BALLOON_REQUESTED_ON_NOT_SUPPORTED_ARCH);
-        }
-
         if (isSoundDeviceEnabled() && !osRepository.isSoundDeviceEnabled(getParameters().getVmStaticData().getOsId(),
                 getEffectiveCompatibilityVersion())) {
             addValidationMessageVariable("clusterArch", getCluster().getArchitecture());
             return failValidation(EngineMessage.SOUND_DEVICE_REQUESTED_ON_NOT_SUPPORTED_ARCH);
+        }
+
+        if (isTpmEnabled()
+                && !getVmDeviceUtils().isTpmDeviceSupported(getParameters().getVmStaticData(), getCluster())) {
+            addValidationMessageVariable("clusterArch", getCluster().getArchitecture());
+            return failValidation(EngineMessage.TPM_DEVICE_REQUESTED_ON_NOT_SUPPORTED_PLATFORM);
         }
 
         if (!validate(getNumaValidator().checkVmNumaNodesIntegrity(
@@ -1303,7 +1322,7 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
             return failValidation(msgs);
         }
 
-        final boolean isMemoryHotUnplug = vmFromDB.getMemSizeMb() > vmFromParams.getMemSizeMb()
+        final boolean isMemoryHotUnplug = memorySizeChangeMb < 0
                 && isHotSetEnabled()
                 && getParameters().isMemoryHotUnplugEnabled();
         if (isMemoryHotUnplug
@@ -1324,23 +1343,14 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
                     ReplacementUtils.createSetVariableString("memory", vmFromParams.getMemSizeMb()));
         }
 
-        if (vmFromDB.getMemSizeMb() != vmFromParams.getMemSizeMb() &&
-                vmFromDB.isRunning() &&
-                isHotSetEnabled() &&
-                HugePageUtils.isBackedByHugepages(vmFromDB.getStaticData()) &&
-                (vmFromDB.getMemSizeMb() < vmFromParams.getMemSizeMb() ||
-                        (vmFromDB.getMemSizeMb() > vmFromParams.getMemSizeMb() &&
-                                getParameters().isMemoryHotUnplugEnabled()))
-                ) {
+        if (memorySizeChangeMb != 0 && vmFromDB.isRunning() && isHotSetEnabled()
+                && HugePageUtils.isBackedByHugepages(vmFromDB.getStaticData())
+                && (memorySizeChangeMb > 0 || (memorySizeChangeMb < 0 && getParameters().isMemoryHotUnplugEnabled()))) {
             return failValidation(EngineMessage.ACTION_TYPE_FAILED_MEMORY_HOT_SET_NOT_SUPPORTED_FOR_HUGE_PAGES);
         }
 
-        if (FeatureSupported.isBiosTypeSupported(getCluster().getCompatibilityVersion())
-                && vmFromParams.getCustomBiosType() != BiosType.CLUSTER_DEFAULT
-                && vmFromParams.getCustomBiosType() != BiosType.I440FX_SEA_BIOS
-                && getCluster().getArchitecture() != ArchitectureType.undefined
-                && getCluster().getArchitecture().getFamily() != ArchitectureType.x86) {
-            return failValidation(EngineMessage.NON_DEFAULT_BIOS_TYPE_FOR_X86_ONLY);
+        if (!validate(vmValidator.isBiosTypeSupported(getCluster(), osRepository))) {
+            return false;
         }
 
         if (vmFromDB.getVmPoolId() != null) {
@@ -1360,6 +1370,11 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
 
         if (!isIsoPathExists(vmFromParams.getStaticData(), getVm().getStoragePoolId())){
             return failValidation(EngineMessage.ERROR_CANNOT_FIND_ISO_IMAGE_PATH);
+        }
+
+        if (!validate(vmHandler.validateAutoPinningPolicy(getParameters().getVmStaticData(),
+                getParameters().getAutoPinningPolicy()))) {
+            return false;
         }
 
         return true;
@@ -1397,7 +1412,6 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
                 diskVmElements,
                 isVirtioScsiEnabled(),
                 hasWatchdog(),
-                isBalloonEnabled(),
                 isSoundDeviceEnabled()));
     }
 
@@ -1446,8 +1460,10 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
      * @return true if next run snapshot is needed because of memory change
      */
     private boolean memoryNextRunSnapshotRequired() {
+        final int memoryChange = getParameters().getVm().getMemSizeMb() - oldVm.getMemSizeMb();
         return VMStatus.Down != getVm().getStatus()
-                && oldVm.getMemSizeMb() != getParameters().getVm().getMemSizeMb();
+                && ((memoryChange < 0 && !getParameters().isMemoryHotUnplugEnabled())
+                        || memoryChange % getVm().getClusterArch().getHotplugMemorySizeFactorMb() != 0);
     }
 
     private boolean isClusterLevelChange() {
@@ -1517,7 +1533,9 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
     }
 
     private boolean isChipsetChanged() {
-        return getEffectiveBiosType().getChipsetType() != getVm().getEffectiveBiosType().getChipsetType();
+        BiosType newBiosType = getParameters().getVmStaticData().getBiosType();
+        BiosType oldBiosType = getVm().getBiosType();
+        return  newBiosType.getChipsetType() != oldBiosType.getChipsetType();
     }
 
     @Override
@@ -1625,15 +1643,16 @@ public class UpdateVmCommand<T extends VmManagementParametersBase> extends VmMan
         return getVmDeviceUtils().hasVirtioScsiController(vmId);
     }
 
-    protected boolean isBalloonEnabled() {
-        Boolean balloonEnabled = getParameters().isBalloonEnabled();
-        return balloonEnabled != null ? balloonEnabled : getVmDeviceUtils().hasMemoryBalloon(getVmId());
-    }
-
     protected boolean isSoundDeviceEnabled() {
         Boolean soundDeviceEnabled = getParameters().isSoundDeviceEnabled();
         return soundDeviceEnabled != null ? soundDeviceEnabled :
                 getVmDeviceUtils().hasSoundDevice(getVmId());
+    }
+
+    protected boolean isTpmEnabled() {
+        Boolean tpmDeviceEnabled = getParameters().isTpmEnabled();
+        return tpmDeviceEnabled != null ? tpmDeviceEnabled :
+                getVmDeviceUtils().hasTpmDevice(getVmId());
     }
 
     protected boolean hasWatchdog() {

@@ -1,3 +1,4 @@
+asciidoc
 autoconf
 dnf
 dnf-utils
@@ -12,10 +13,12 @@ postgresql-contrib
 postgresql-jdbc
 postgresql-server
 python3-ansible-lint
+python3-distro
 python3-mock
 python3-pycodestyle
 python3-psycopg2
 python3-pytest
+python3-pytest-mock
 python3-devel
 python3-isort
 python3-pyflakes

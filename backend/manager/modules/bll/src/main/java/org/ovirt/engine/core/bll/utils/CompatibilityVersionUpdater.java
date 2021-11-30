@@ -5,7 +5,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import org.ovirt.engine.core.common.FeatureSupported;
-import org.ovirt.engine.core.common.businessentities.BiosType;
 import org.ovirt.engine.core.common.businessentities.Cluster;
 import org.ovirt.engine.core.common.businessentities.DisplayType;
 import org.ovirt.engine.core.common.businessentities.MigrationSupport;
@@ -18,7 +17,6 @@ import org.ovirt.engine.core.common.businessentities.VmTemplate;
 import org.ovirt.engine.core.common.config.Config;
 import org.ovirt.engine.core.common.config.ConfigValues;
 import org.ovirt.engine.core.common.migration.NoMigrationPolicy;
-import org.ovirt.engine.core.common.utils.BiosTypeUtils;
 import org.ovirt.engine.core.common.utils.VmCommonUtils;
 import org.ovirt.engine.core.common.utils.VmCpuCountHelper;
 import org.ovirt.engine.core.common.utils.customprop.ValidationError;
@@ -32,23 +30,7 @@ public class CompatibilityVersionUpdater {
      */
     public EnumSet<VmUpdateType> updateVmCompatibilityVersion(VM vm, Version newVersion, Cluster cluster) {
         vm.setClusterCompatibilityVersion(cluster.getCompatibilityVersion());
-        updateDefaultBiosType(vm, newVersion);
         return updateVmBaseCompatibilityVersion(vm.getStaticData(), newVersion, cluster);
-    }
-
-    private void updateDefaultBiosType(VM vm, Version newVersion) {
-        if (newVersion.greaterOrEquals(Version.v4_3)) {
-            BiosType oldBiosType = getBiosTypeOrigin(vm);
-            if (oldBiosType == BiosType.Q35_SECURE_BOOT) {
-                vm.setCustomBiosType(BiosType.Q35_SECURE_BOOT);
-            }
-        }
-    }
-
-    public static BiosType getBiosTypeOrigin(VM vm) {
-        BiosType clusterBiosType =
-                vm.getClusterBiosTypeOrigin() != null ? vm.getClusterBiosTypeOrigin() : BiosType.I440FX_SEA_BIOS;
-        return BiosTypeUtils.getEffective(vm.getCustomBiosType(), clusterBiosType);
     }
 
     /**
@@ -81,9 +63,6 @@ public class CompatibilityVersionUpdater {
         }
         if (updateMigrationPolicy(vmBase, newVersion, cluster)) {
             updates.add(VmUpdateType.MIGRATION_POLICY);
-        }
-        if (updateBiosType(vmBase, newVersion)) {
-            updates.add(VmUpdateType.BIOS_TYPE);
         }
         if (updateDefaultDisplayType(vmBase, newVersion)) {
             updates.add(VmUpdateType.DEFAULT_DISPLAY_TYPE);
@@ -118,9 +97,9 @@ public class CompatibilityVersionUpdater {
         vmBase.setMemSizeMb(Math.min(vmBase.getMemSizeMb(), maxMemoryFromConfig));
         vmBase.setMinAllocatedMem(Math.min(vmBase.getMinAllocatedMem(), maxMemoryFromConfig));
 
-        return vmBase.getMaxMemorySizeMb() != oldMaxMem ||
+        return vmBase.getMaxMemorySizeMb() != oldMaxMem && oldMaxMem != 0 ||
                 vmBase.getMemSizeMb() != oldMemSize ||
-                vmBase.getMinAllocatedMem() != oldMinMem;
+                vmBase.getMinAllocatedMem() != oldMinMem && oldMinMem != 0;
     }
 
     private boolean updateCpuTopology(VmBase vmBase, Version newVersion, Cluster cluster) {
@@ -208,18 +187,6 @@ public class CompatibilityVersionUpdater {
                 newVersion.greaterOrEquals(Version.v4_3)) {
             vmBase.setMigrationPolicyId(cluster.getMigrationPolicyId());
             return !Objects.equals(NoMigrationPolicy.ID, vmBase.getMigrationPolicyId());
-        }
-        return false;
-    }
-
-    private boolean updateBiosType(VmBase vmBase, Version newVersion) {
-        if (!FeatureSupported.isBiosTypeSupported(newVersion) &&
-                vmBase.getCustomBiosType() != BiosType.CLUSTER_DEFAULT &&
-                vmBase.getCustomBiosType() != BiosType.I440FX_SEA_BIOS) {
-            var oldBiosType = vmBase.getCustomBiosType();
-            vmBase.setCustomBiosType(BiosType.CLUSTER_DEFAULT);
-
-            return oldBiosType != BiosType.CLUSTER_DEFAULT;
         }
         return false;
     }

@@ -14,6 +14,7 @@ import java.util.function.UnaryOperator;
 
 import org.gwtbootstrap3.client.ui.Alert;
 import org.gwtbootstrap3.client.ui.Row;
+import org.ovirt.engine.core.common.businessentities.AutoPinningPolicy;
 import org.ovirt.engine.core.common.businessentities.BiosType;
 import org.ovirt.engine.core.common.businessentities.BootSequence;
 import org.ovirt.engine.core.common.businessentities.Cluster;
@@ -21,7 +22,6 @@ import org.ovirt.engine.core.common.businessentities.ConsoleDisconnectAction;
 import org.ovirt.engine.core.common.businessentities.DisplayType;
 import org.ovirt.engine.core.common.businessentities.InstanceType;
 import org.ovirt.engine.core.common.businessentities.MigrationSupport;
-import org.ovirt.engine.core.common.businessentities.NumaTuneMode;
 import org.ovirt.engine.core.common.businessentities.OpenstackNetworkProviderProperties;
 import org.ovirt.engine.core.common.businessentities.Provider;
 import org.ovirt.engine.core.common.businessentities.Quota;
@@ -310,8 +310,6 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
     public EntityModelDetachableWidgetWithInfo threadsPerCoreEditorWithInfoIcon;
 
     private BiosTypeRenderer biosTypeRenderer;
-
-    private ClusterDefaultRenderer<BiosType> biosTypeClusterDefaultRenderer;
 
     @UiField(provided = true)
     @Path(value = "biosType.selectedItem")
@@ -662,11 +660,6 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
     @WithElementId("numaNodeCount")
     public IntegerEntityModelTextBoxEditor numaNodeCount;
 
-    @UiField(provided = true)
-    @Path(value = "numaTuneMode.selectedItem")
-    @WithElementId("numaTuneMode")
-    public ListModelListBoxEditor<NumaTuneMode> numaTuneMode;
-
     @UiField
     UiCommandButton numaSupportButton;
 
@@ -785,6 +778,17 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
     @WithElementId("customCompatibilityVersion")
     public ListModelListBoxEditor<Version> customCompatibilityVersionEditor;
 
+    @UiField
+    protected Row autoPinningPolicyRow;
+
+    @UiField(provided = true)
+    InfoIcon autoPinningInfo;
+
+    @UiField(provided = true)
+    @Path(value = "autoPinningPolicy.selectedItem")
+    @WithElementId("autoPinningPolicy")
+    public ListModelListBoxOnlyEditor<AutoPinningPolicy> autoPinningPolicyEditor;
+
     // ==High Availability Tab==
     @UiField
     protected DialogTab highAvailabilityTab;
@@ -887,11 +891,16 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
     public EntityModelDetachableWidget isIoThreadsEnabledDetachable;
 
     @UiField(provided = true)
-    @Path(value = "memoryBalloonDeviceEnabled.entity")
-    EntityModelCheckBoxEditor isMemoryBalloonDeviceEnabled;
+    @Path(value = "memoryBalloonEnabled.entity")
+    EntityModelCheckBoxEditor isMemoryBalloonEnabled;
 
     @UiField(provided = true)
-    public EntityModelDetachableWidget isMemoryBalloonDeviceEnabledDetachable;
+    public EntityModelDetachableWidget isMemoryBalloonEnabledDetachable;
+
+    @UiField(provided = true)
+    @Path(value = "tpmEnabled.entity")
+    @WithElementId("tpmEnabled")
+    public EntityModelCheckBoxEditor tpmEnabledEditor;
 
     @UiField(provided = true)
     @Path(value = "provisioningThin_IsSelected.entity")
@@ -911,6 +920,15 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
     @UiField(provided = true)
     @Ignore
     public InfoIcon isVirtioScsiEnabledInfoIcon;
+
+    @UiField(provided = true)
+    @Path(value = "virtioScsiMultiQueuesEnabled.entity")
+    @WithElementId("virtioScsiMultiQueuesEnabled")
+    public EntityModelCheckBoxEditor virtioScsiMultiQueuesEnabled;
+
+    @UiField(provided = true)
+    @Ignore
+    public InfoIcon isVirtioScsiMultiQueuesInfoIcon;
 
     @UiField(provided = true)
     @Ignore
@@ -1078,6 +1096,7 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
         rngBytesEditor = new IntegerEntityModelTextBoxEditor(new ModeSwitchingVisibilityRenderer());
         rngSourceUrandom = new EntityModelRadioButtonEditor("rndBackendModel"); //$NON-NLS-1$
         rngSourceHwrng = new EntityModelRadioButtonEditor("rndBackendModel"); //$NON-NLS-1$
+        tpmEnabledEditor = new EntityModelCheckBoxEditor(Align.RIGHT, new ModeSwitchingVisibilityRenderer());
 
         cdAttachedEditor = new EntityModelCheckBoxEditor(Align.RIGHT, new ModeSwitchingVisibilityRenderer());
         bootMenuEnabledEditor = new EntityModelCheckBoxEditor(Align.RIGHT, new ModeSwitchingVisibilityRenderer());
@@ -1087,12 +1106,13 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
         ssoMethodNone = new EntityModelRadioButtonEditor("ssoMethod", new ModeSwitchingVisibilityRenderer()); //$NON-NLS-1$
         ssoMethodGuestAgent = new EntityModelRadioButtonEditor("ssoMethod", new ModeSwitchingVisibilityRenderer());//$NON-NLS-1$
         copyTemplatePermissionsEditor = new EntityModelCheckBoxEditor(Align.RIGHT, new ModeSwitchingVisibilityRenderer());
-        isMemoryBalloonDeviceEnabled = new EntityModelCheckBoxEditor(Align.RIGHT, new ModeSwitchingVisibilityRenderer());
+        isMemoryBalloonEnabled = new EntityModelCheckBoxEditor(Align.RIGHT, new ModeSwitchingVisibilityRenderer());
         isIoThreadsEnabled = new EntityModelCheckBoxEditor(Align.RIGHT, new ModeSwitchingVisibilityRenderer());
         numOfIoThreadsEditor = StringEntityModelTextBoxOnlyEditor.newTrimmingEditor(new ModeSwitchingVisibilityRenderer());
         ioThreadsInfo = new InfoIcon(multiLineItalicSafeHtml(constants.ioThreadsExplanation()));
         ioThreadsInfo.setTooltipMaxWidth(TooltipWidth.W420);
         isVirtioScsiEnabled = new EntityModelCheckBoxEditor(Align.RIGHT, new ModeSwitchingVisibilityRenderer());
+        virtioScsiMultiQueuesEnabled = new EntityModelCheckBoxEditor(Align.RIGHT, new ModeSwitchingVisibilityRenderer());
         cpuPinningInfo = new InfoIcon(multiLineItalicSafeHtml(constants.cpuPinningLabelExplanation()));
         cpuPinningInfo.setTooltipMaxWidth(TooltipWidth.W420);
         multiQueuesInfo = new InfoIcon(templates.italicText(constants.multiQueuesLabelExplanation()));
@@ -1100,6 +1120,8 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
                 new InfoIcon(SafeHtmlUtils.fromTrustedString(constants.headlessModeExplanation()));
         isVirtioScsiEnabledInfoIcon =
                 new InfoIcon(templates.italicText(constants.isVirtioScsiEnabledInfo()));
+        isVirtioScsiMultiQueuesInfoIcon =
+                new InfoIcon(templates.italicText(constants.isVirtioScsiMultiQueuesInfoIcon()));
         final Integer defaultMaximumMigrationDowntime = (Integer) AsyncDataProvider.getInstance().
                 getConfigValuePreConverted(ConfigValues.DefaultMaximumMigrationDowntime);
 
@@ -1125,6 +1147,8 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
         spiceFileTransferEnabledEditor = new EntityModelCheckBoxEditor(Align.RIGHT, new ModeSwitchingVisibilityRenderer());
         spiceCopyPasteEnabledEditor = new EntityModelCheckBoxEditor(Align.RIGHT, new ModeSwitchingVisibilityRenderer());
         multiQueues = new EntityModelCheckBoxEditor(Align.RIGHT, new ModeSwitchingVisibilityRenderer());
+        autoPinningPolicyEditor = new ListModelListBoxOnlyEditor<>(new EnumRenderer<AutoPinningPolicy>(), new ModeSwitchingVisibilityRenderer());
+        autoPinningInfo = new InfoIcon(templates.italicText(constants.autoPinningLabelExplanation()));
 
         initPoolSpecificWidgets();
         initTextBoxEditors();
@@ -1193,7 +1217,7 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
         isHighlyAvailableEditorWithDetachable = new EntityModelDetachableWidget(isHighlyAvailableEditor, Align.IGNORE);
 
         detachablePriorityEditor = new EntityModelDetachableWidgetWithLabel(priorityEditor);
-        isMemoryBalloonDeviceEnabledDetachable = new EntityModelDetachableWidget(isMemoryBalloonDeviceEnabled);
+        isMemoryBalloonEnabledDetachable = new EntityModelDetachableWidget(isMemoryBalloonEnabled);
         isIoThreadsEnabledDetachable = new EntityModelDetachableWidget(isIoThreadsEnabled);
 
         final EnableableFormLabel physMemGuarLabel = new EnableableFormLabel(constants.physMemGuarVmPopup());
@@ -1438,14 +1462,14 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
                     @Override
                     public String getDisplayStringNullSafe(String data) {
                         if (data == null || data.trim().isEmpty()) {
-                            data = getDefaultEmulatedMachineLabel();
+                            data = ""; //$NON-NLS
                         }
                         return typeAheadNameTemplateNullSafe(data);
                     }
                 },
                 false,
                 new ModeSwitchingVisibilityRenderer(),
-                constants.clusterDefaultOption());
+                ""); //$NON-NLS
 
         customCpu = new ListModelTypeAheadChangeableListBoxEditor(
                 new ListModelTypeAheadChangeableListBoxEditor.NullSafeSuggestBoxRenderer() {
@@ -1589,14 +1613,11 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
         cpuSharesAmountSelectionEditor =
                 new ListModelListBoxOnlyEditor<>(new EnumRenderer<UnitVmModel.CpuSharesAmount>(), new ModeSwitchingVisibilityRenderer());
 
-        numaTuneMode = new ListModelListBoxEditor<>(new EnumRenderer(), new ModeSwitchingVisibilityRenderer());
-
         providersEditor = new ListModelListBoxEditor<>(new NameRenderer<Provider<OpenstackNetworkProviderProperties>>());
         providersEditor.setLabel(constants.providerLabel());
 
         biosTypeRenderer = new BiosTypeRenderer();
-        biosTypeClusterDefaultRenderer = new ClusterDefaultRenderer(biosTypeRenderer, BiosType.CLUSTER_DEFAULT);
-        biosTypeEditor = new ListModelListBoxEditor<>(biosTypeClusterDefaultRenderer, new ModeSwitchingVisibilityRenderer());
+        biosTypeEditor = new ListModelListBoxEditor<>(biosTypeRenderer, new ModeSwitchingVisibilityRenderer());
     }
 
     private String typeAheadNameDescriptionTemplateNullSafe(String name, String description) {
@@ -1678,7 +1699,6 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
 
     private void enableNumaFields(boolean enabled) {
         numaNodeCount.setEnabled(enabled);
-        numaTuneMode.setEnabled(enabled);
         numaSupportButton.setEnabled(enabled);
     }
 
@@ -1728,6 +1748,12 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
         object.getIsVirtioScsiEnabled().getPropertyChangedEvent().addListener((ev, sender, args) -> {
             if ("IsAvailable".equals(args.propertyName)) { //$NON-NLS-1$
                 isVirtioScsiEnabledInfoIcon.setVisible(object.getIsVirtioScsiEnabled().getIsAvailable());
+            }
+        });
+
+        object.getVirtioScsiMultiQueuesEnabled().getPropertyChangedEvent().addListener((ev, sender, args) -> {
+            if ("IsAvailable".equals(args.propertyName)) { //$NON-NLS-1$
+                isVirtioScsiMultiQueuesInfoIcon.setVisible(object.getVirtioScsiMultiQueuesEnabled().getIsAvailable());
             }
         });
 
@@ -1786,7 +1812,6 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
         object.getIsRngEnabled().getPropertyChangedEvent().addListener((ev, sender, args) -> rngPanel.setVisible(object.getIsRngEnabled().getEntity()));
 
         object.getDataCenterWithClustersList().getSelectedItemChangedEvent().addListener((ev, sender, args) -> {
-            emulatedMachine.setNullReplacementString(getDefaultEmulatedMachineLabel());
             customCpu.setNullReplacementString(getDefaultCpuTypeLabel());
             updateUrandomLabel(object);
             biosTypeRenderer.setArchitectureType(getModel().getSelectedCluster() == null ? null : getModel().getSelectedCluster().getArchitecture());
@@ -1801,8 +1826,7 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
         });
 
         object.getIoThreadsEnabled().getEntityChangedEvent().addListener(
-                (ev, sender, args) -> ioThreadsPanel.setVisible(object.getIoThreadsEnabled().getEntity())
-        );
+                (ev, sender, args) -> ioThreadsPanel.setVisible(object.getIoThreadsEnabled().getEntity()));
 
         object.getCustomCompatibilityVersion().getSelectedItemChangedEvent().addListener((ev, sender, args) -> updateUrandomLabel(object));
 
@@ -1837,7 +1861,6 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
         initClusterDefaultValueListener(autoConvergeRenderer, getModel().getAutoConverge());
         initClusterDefaultValueListener(migrateCompressedRenderer, getModel().getMigrateCompressed());
         initClusterDefaultValueListener(migrationPolicyRenderer, getModel().getMigrationPolicies());
-        initClusterDefaultValueListener(biosTypeClusterDefaultRenderer, getModel().getBiosType());
     }
 
     private void updateUrandomLabel(UnitVmModel model) {
@@ -1849,16 +1872,6 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
                 ? constants.rngSourceUrandom()
                 : constants.rngSourceRandom();
         rngSourceUrandom.setLabel(urandomSourceLabel);
-    }
-
-    private String getDefaultEmulatedMachineLabel() {
-        Cluster cluster = getModel().getSelectedCluster();
-        String newClusterEmulatedMachine = constants.clusterDefaultOption();
-        if (cluster != null) {
-            String emulatedMachine = (cluster.getEmulatedMachine() == null) ? "" : cluster.getEmulatedMachine(); //$NON-NLS-1$
-            newClusterEmulatedMachine +=  "(" + emulatedMachine + ")"; //$NON-NLS-1$ //$NON-NLS-2$
-        }
-        return newClusterEmulatedMachine;
     }
 
     private String getDefaultCpuTypeLabel() {
@@ -2098,9 +2111,9 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
         hostCpuEditor.setTabIndex(nextTabIndex++);
         tscFrequencyEditor.setTabIndexes(nextTabIndex++);
         customCompatibilityVersionEditor.setTabIndex(nextTabIndex++);
+        autoPinningPolicyEditor.setTabIndexes(nextTabIndex++);
 
         numaNodeCount.setTabIndex(nextTabIndex++);
-        numaTuneMode.setTabIndex(nextTabIndex++);
         // ==High Availability Tab==
         nextTabIndex = highAvailabilityTab.setTabIndexes(nextTabIndex);
         isHighlyAvailableEditor.setTabIndex(nextTabIndex++);
@@ -2116,6 +2129,7 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
         provisioningCloneEditor.setTabIndex(nextTabIndex++);
         cpuPinning.setTabIndex(nextTabIndex++);
         cpuSharesAmountEditor.setTabIndex(nextTabIndex++);
+        tpmEnabledEditor.setTabIndex(nextTabIndex++);
         numOfIoThreadsEditor.setTabIndex(nextTabIndex++);
         multiQueues.setTabIndex(nextTabIndex++);
         nextTabIndex = disksAllocationView.setTabIndexes(nextTabIndex);
@@ -2242,7 +2256,7 @@ public abstract class AbstractVmPopupWidget extends AbstractModeSwitchingPopupWi
                 corePerSocketEditorWithDetachable,
                 threadsPerCoreEditorWithInfoIcon,
                 isHighlyAvailableEditorWithDetachable,
-                isMemoryBalloonDeviceEnabledDetachable,
+                isMemoryBalloonEnabledDetachable,
                 isIoThreadsEnabledDetachable,
                 detachablePriorityEditor,
                 migrationModeEditorWithDetachable,

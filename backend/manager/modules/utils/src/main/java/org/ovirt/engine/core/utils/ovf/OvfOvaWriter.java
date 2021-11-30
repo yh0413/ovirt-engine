@@ -2,8 +2,10 @@ package org.ovirt.engine.core.utils.ovf;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.lang.StringUtils;
+import org.ovirt.engine.core.common.action.VmExternalDataKind;
 import org.ovirt.engine.core.common.businessentities.VmBase;
 import org.ovirt.engine.core.common.businessentities.storage.DiskImage;
 import org.ovirt.engine.core.common.businessentities.storage.DiskVmElement;
@@ -12,10 +14,16 @@ import org.ovirt.engine.core.compat.Version;
 
 public abstract class OvfOvaWriter extends OvfWriter {
 
+    protected Map<VmExternalDataKind, String> vmExternalData;
     private OsRepository osRepository;
 
-    public OvfOvaWriter(VmBase vmBase, List<DiskImage> images, Version version, OsRepository osRepository) {
+    public OvfOvaWriter(VmBase vmBase,
+            List<DiskImage> images,
+            Version version,
+            Map<VmExternalDataKind, String> vmExternalData,
+            OsRepository osRepository) {
         super(vmBase, images, Collections.emptyList(), version);
+        this.vmExternalData = vmExternalData;
         this.osRepository = osRepository;
     }
 
@@ -30,6 +38,33 @@ public abstract class OvfOvaWriter extends OvfWriter {
     @Override
     public String getOvfUri() {
         return OVF_URI;
+    }
+
+    @Override
+    protected void writeReferenceData() {
+        super.writeReferenceData();
+        int tpmDataSize = getVmExternalDataSize(VmExternalDataKind.TPM);
+        if (tpmDataSize > 0) {
+            _writer.writeStartElement("File");
+            writeExternalDataFile("tpm.dat", tpmDataSize);
+            _writer.writeEndElement();
+        }
+        int nvramDataSize = getVmExternalDataSize(VmExternalDataKind.NVRAM);
+        if (nvramDataSize > 0) {
+            _writer.writeStartElement("File");
+            writeExternalDataFile("nvram.dat", nvramDataSize);
+            _writer.writeEndElement();
+        }
+    }
+
+    private int getVmExternalDataSize(VmExternalDataKind kind) {
+        return vmExternalData != null ? vmExternalData.getOrDefault(kind, "").length() : 0;
+    }
+
+    private void writeExternalDataFile(String fileName, int size) {
+        _writer.writeAttributeString(OVF_PREFIX, getOvfUri(), "href", fileName);
+        _writer.writeAttributeString(OVF_PREFIX, getOvfUri(), "id", fileName);
+        _writer.writeAttributeString(OVF_PREFIX, getOvfUri(), "size", String.valueOf(size));
     }
 
     @Override
@@ -73,6 +108,13 @@ public abstract class OvfOvaWriter extends OvfWriter {
         _writer.writeAttributeString(OVF_PREFIX, getOvfUri(), "disk_storage_type", image.getDiskStorageType().name());
         _writer.writeAttributeString(OVF_PREFIX, getOvfUri(), "cinder_volume_type",
                 StringUtils.defaultString(image.getCinderVolumeType()));
+    }
+
+    @Override
+    protected void writeTpmHostResource() {
+        if (getVmExternalDataSize(VmExternalDataKind.TPM) != 0) {
+            _writer.writeElement(RASD_URI, "HostResource", getFileHostResource("tpm.dat"));
+        }
     }
 
     @Override
@@ -134,10 +176,12 @@ public abstract class OvfOvaWriter extends OvfWriter {
         case 1254:
         case 1255:
         case 1256:
+        case 1257:
         case 1005:
         case 2005:
-            return 94; // Ubuntu x64
+            return 94; // Ubuntu
         case 1300: // Debian 7
+        case 1301: // Debian 9
             return 96;
         case 1500: // FreeBSD
             return 42;
@@ -155,9 +199,12 @@ public abstract class OvfOvaWriter extends OvfWriter {
         case 24:
         case 28:
         case 33:
+        case 34:
         case 1003:
         case 1006:
         case 1007:
+        case 1008:
+        case 1009:
         case 2003:
             return 80; // RHEL x64
         case 1001:
@@ -181,6 +228,10 @@ public abstract class OvfOvaWriter extends OvfWriter {
     protected void startVirtualSystem() {
         _writer.writeStartElement("VirtualSystem");
         _writer.writeAttributeString(OVF_PREFIX, getOvfUri(), "id", vmBase.getId().toString());
+    }
+
+    protected String getFileHostResource(String name) {
+        return String.format("ovf:/file/%s", name);
     }
 
     @Override

@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.ovirt.engine.core.common.action.ActionType;
+import org.ovirt.engine.core.common.businessentities.AutoPinningPolicy;
 import org.ovirt.engine.core.common.businessentities.Cluster;
 import org.ovirt.engine.core.common.businessentities.StoragePool;
 import org.ovirt.engine.core.common.businessentities.VDS;
@@ -23,6 +24,7 @@ import org.ovirt.engine.core.common.queries.IdQueryParameters;
 import org.ovirt.engine.core.common.queries.QueryReturnValue;
 import org.ovirt.engine.core.common.queries.QueryType;
 import org.ovirt.engine.core.common.utils.CompatibilityVersionUtils;
+import org.ovirt.engine.core.common.utils.VmCommonUtils;
 import org.ovirt.engine.core.common.validation.VmActionByVmOriginTypeValidator;
 import org.ovirt.engine.core.compat.Guid;
 import org.ovirt.engine.core.compat.StringHelper;
@@ -102,6 +104,12 @@ public class ExistingVmModelBehavior extends VmModelBehaviorBase<UnitVmModel> {
                     new IdQueryParameters(vm.getId()),
                     asyncQuery((QueryReturnValue returnValue) ->
                             setDedicatedHostsNames((List<String>) returnValue.getReturnValue())));
+        }
+
+        if (getVm().isHostedEngine()) {
+            getModel().getIsHighlyAvailable().setEntity(false);
+            getModel().getIsHighlyAvailable().setIsChangeable(false);
+            getModel().getIsHighlyAvailable().setChangeProhibitionReason(constants.noHaWhenHostedEngineUsed());
         }
     }
 
@@ -351,9 +359,9 @@ public class ExistingVmModelBehavior extends VmModelBehaviorBase<UnitVmModel> {
             return;
         }
 
-        double overCommitFactor = 100.0 / cluster.getMaxVdsMemoryOverCommit();
-        getModel().getMinAllocatedMemory()
-                .setEntity((int) (getModel().getMemSize().getEntity() * overCommitFactor));
+        int minMemory = VmCommonUtils.calcMinMemory(
+                getModel().getMemSize().getEntity(), cluster.getMaxVdsMemoryOverCommit());
+        getModel().getMinAllocatedMemory().setEntity(minMemory);
     }
 
     protected void initTemplate() {
@@ -480,14 +488,6 @@ public class ExistingVmModelBehavior extends VmModelBehaviorBase<UnitVmModel> {
     }
 
     @Override
-    public void enableSinglePCI(boolean enabled) {
-        super.enableSinglePCI(enabled);
-        if (getInstanceTypeManager() != null) {
-            getInstanceTypeManager().maybeSetSingleQxlPci(vm.getStaticData());
-        }
-    }
-
-    @Override
     public ExistingVmInstanceTypeManager getInstanceTypeManager() {
         return (ExistingVmInstanceTypeManager) instanceTypeManager;
     }
@@ -514,20 +514,29 @@ public class ExistingVmModelBehavior extends VmModelBehaviorBase<UnitVmModel> {
     }
 
     @Override
-    public void updateHaAvailability() {
-        super.updateHaAvailability();
-
-        if (getVm() != null && getVm().isHostedEngine()) {
-            getModel().getIsHighlyAvailable().setEntity(false);
-            getModel().getIsHighlyAvailable().setIsChangeable(false);
-            getModel().getIsHighlyAvailable().setChangeProhibitionReason(constants.noHaWhenHostedEngineUsed());
-        }
-    }
-
-    @Override
     public void updateMaxMemory() {
         if (vm.getStatus() != VMStatus.Up) {
             super.updateMaxMemory();
         }
+    }
+
+    @Override
+    protected void updateAutoPinning() {
+        getModel().getAutoPinningPolicy().setSelectedItem(AutoPinningPolicy.NONE);
+        if (getModel().getIsAutoAssign().getEntity() == null) {
+            return;
+        }
+
+        if (!isAutoPinningPossible()) {
+            getModel().getAutoPinningPolicy().setIsChangeable(false);
+        } else {
+            getModel().getAutoPinningPolicy().setIsChangeable(true);
+        }
+    }
+
+
+    @Override
+    protected void disableCpuPinningAutoPinningConflict() {
+        getModel().getCpuPinning().setIsChangeable(false, constants.cpuChangesConflictWithAutoPin());
     }
 }

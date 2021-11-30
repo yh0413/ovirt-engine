@@ -44,6 +44,7 @@ public class NewPoolModelBehavior extends PoolModelBehaviorBase {
                 return !getModel().getPoolStateful().getEntity();
             }
         });
+        getModel().getPoolStateful().getEntityChangedEvent().addListener((ev, sender, args) -> updateSeal());
     }
 
     @Override
@@ -135,18 +136,23 @@ public class NewPoolModelBehavior extends PoolModelBehaviorBase {
     }
 
     @Override
+    protected void updateBiosType() {
+        super.updateBiosType();
+        super.selectBiosTypeFromTemplate();
+    }
+
+    @Override
     protected List<Cluster> filterClusters(List<Cluster> clusters) {
         return AsyncDataProvider.getInstance().filterClustersWithoutArchitecture(clusters);
     }
 
     @Override
-    public InstanceTypeManager getInstanceTypeManager() {
-        return instanceTypeManager;
+    protected boolean isSealByDefault(VmTemplate template) {
+        return getModel().getPoolStateful().getEntity() && super.isSealByDefault(template);
     }
 
     @Override
-    public void enableSinglePCI(boolean enabled) {
-        super.enableSinglePCI(enabled);
-        getModel().setSingleQxlEnabled(enabled);
+    public InstanceTypeManager getInstanceTypeManager() {
+        return instanceTypeManager;
     }
 }

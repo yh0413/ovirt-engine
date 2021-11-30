@@ -103,9 +103,11 @@ public interface IIrsServer {
     OneUuidReturn reduceVolume(String spUUID, String sdUUID, String imageUUID,
                                String volumeUUID, boolean allowActive);
 
-    VmLeaseTaskInfoReturn addVmLease(String leaseUUID, String sdUUID);
+    LeaseTaskInfoReturn addLease(String leaseUUID, String sdUUID, Map<String, Object> leaseMetadata);
 
-    VmLeaseTaskInfoReturn removeVmLease(String leaseUUID, String sdUUID);
+    LeaseTaskInfoReturn removeLease(String leaseUUID, String sdUUID);
 
-    LeaseInfoReturn getVmLeaseInfo(String leaseUUID, String sdUUID);
+    LeaseInfoReturn getLeaseInfo(String leaseUUID, String sdUUID);
+
+    OneUuidReturn switchMaster(String spUUID, String oldMasterUUID, String newMasterUUID, int masterVersion);
 }

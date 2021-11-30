@@ -302,6 +302,12 @@ public class ClusterValidator {
                         && !allVdssInMaintenance);
     }
 
+    public ValidationResult updateFipsIsLegal() {
+        return ValidationResult.failWith(EngineMessage.CLUSTER_CANNOT_UPDATE_FIPS_VDS_MAINTENANCE)
+                .when(cluster.getFipsMode() != newCluster.getFipsMode()
+                        && !areAllVdssInMaintenance(allHostsForCluster.get()));
+    }
+
     /**
      * cannot change the processor architecture while there are attached hosts or VMs to the cluster
      */
@@ -318,6 +324,14 @@ public class ClusterValidator {
         boolean isOldCPUEmpty = StringUtils.isEmpty(cluster.getCpuName());
         return ValidationResult.failWith(EngineMessage.CLUSTER_CPU_IS_NOT_UPDATABLE)
                 .when(!isOldCPUEmpty && !sameCpuNames && !isCpuUpdatable && hasVmOrHost);
+    }
+
+    public ValidationResult canAutoDetectCpu() {
+        boolean oldCpuEmpty = StringUtils.isEmpty(cluster.getCpuName());
+        boolean newCpuEmpty = StringUtils.isEmpty(newCluster.getCpuName());
+        boolean hasVmOrHost = !allVmsForCluster.get().isEmpty() || !allHostsForCluster.get().isEmpty();
+        return ValidationResult.failWith(EngineMessage.CLUSTER_CANNOT_SET_CPU_AUTODETECTION)
+                .when(!oldCpuEmpty && newCpuEmpty && hasVmOrHost);
     }
 
     /**
@@ -460,7 +474,6 @@ public class ClusterValidator {
         return ValidationResult.failWith(EngineMessage.NON_DEFAULT_BIOS_TYPE_FOR_X86_ONLY)
                 .when(FeatureSupported.isBiosTypeSupported(eCluster.getCompatibilityVersion())
                     && eCluster.getBiosType() != null
-                    && eCluster.getBiosType() != BiosType.CLUSTER_DEFAULT
                     && eCluster.getBiosType() != BiosType.I440FX_SEA_BIOS
                     && architecture.getFamily() != ArchitectureType.x86);
     }
@@ -500,5 +513,4 @@ public class ClusterValidator {
         }
         return volumes;
     }
-
 }

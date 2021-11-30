@@ -4,6 +4,11 @@
 #
 # ovirt_build_extra_flags
 # ovirt_build_ut
+%if 0%{?ovirt_build_user_agent:1}
+%global _ovirt_build_user_agent %{ovirt_build_user_agent}
+%else
+%global _ovirt_build_user_agent gecko1_8
+%endif
 %if 0%{?ovirt_build_quick}
 %global _ovirt_build_ut 0
 %global ovirt_build_gwt 0
@@ -12,13 +17,13 @@
 %global _ovirt_build_ut 0
 %global ovirt_build_all_user_agents 0
 %global ovirt_build_locales 0
-%global _ovirt_build_extra_flags -D gwt.userAgent=gecko1_8
+%global _ovirt_build_extra_flags -D gwt.userAgent=%{_ovirt_build_user_agent}
 %endif
 %if 0%{?ovirt_build_draft}
 %global _ovirt_build_ut 0
 %global ovirt_build_all_user_agents 0
 %global ovirt_build_locales 0
-%global _ovirt_build_extra_flags -D gwt.userAgent=gecko1_8 -P gwtdraft
+%global _ovirt_build_extra_flags -D gwt.userAgent=%{_ovirt_build_user_agent} -P gwtdraft
 %endif
 %if 0%{!?ovirt_build_ut:1}
 %if 0%{?_ovirt_build_ut:1}
@@ -111,6 +116,9 @@
 %global vdsm_group kvm
 %global vdsm_uid 36
 %global vdsm_user vdsm
+
+# Minimal required OpenJDK version
+%global openjdk_version 11.0.11
 
 %if 0%{?rhel} || 0%{?fedora} >= 31
 %global openstack_java_version 3.2.9
@@ -260,10 +268,11 @@ BuildRequires:  maven-enforcer-plugin
 %else
 BuildRequires:  perl
 %endif
-BuildRequires:	java-11-openjdk-devel >= 11.0.4
+BuildRequires:	java-11-openjdk-devel >= %{openjdk_version}
 BuildRequires:	javapackages-tools
 BuildRequires:	make
 BuildRequires:	python3-devel
+BuildRequires:	python3-distro
 BuildRequires:	systemd
 BuildRequires:	unzip
 BuildRequires:	ovirt-jboss-modules-maven-plugin >= 2.0.1
@@ -276,12 +285,10 @@ Requires(pre):	shadow-utils
 # fix engine to work with current and new WildFly version and only afterwards
 # bump the requirement (otherwise we would need to pass wildfly,
 # wildfly-overlay and ovirt-engine through the change queue at once)
-Requires:	ovirt-engine-wildfly-overlay >= 18
-Requires:	ansible >= 2.9.0, ansible < 2.10.0
+Requires:	ovirt-engine-wildfly-overlay >= 23
 %else
-Requires:	eap7-wildfly >= 7.3.0
+Requires:	eap7-wildfly >= 7.4.2
 Requires:	rhvm = %{version}-%{release}
-Requires:	ansible = 2.9.14
 %endif
 
 Requires:	%{name}-backend = %{version}-%{release}
@@ -292,11 +299,12 @@ Requires:	%{name}-webadmin-portal = %{version}-%{release}
 Requires:	%{name}-websocket-proxy >= %{version}-%{release}
 Requires:	%{name}-vmconsole-proxy-helper >= %{version}-%{release}
 Requires:	%{name}-ui-extensions >= 1.0.4
+Requires:	ansible >= 2.9.21, ansible < 2.10.0
 Requires:	ansible-runner-service >= 1.0.6
 Requires:	apache-commons-compress
 Requires:	apache-commons-configuration
 Requires:	apache-commons-jxpath
-Requires:	java-11-openjdk-headless >= 11.0.4
+Requires:	java-11-openjdk-headless >= %{openjdk_version}
 Requires:	javapackages-tools
 Requires:	ovirt-imageio-daemon >= 2.0.10-1
 Requires:	python3-mod_wsgi >= 4.6.4
@@ -344,11 +352,18 @@ Requires:	openstack-java-quantum-client >= %{openstack_java_version}
 Requires:	openstack-java-quantum-model >= %{openstack_java_version}
 Requires:	openstack-java-resteasy-connector >= %{openstack_java_version}
 Requires:	python3-dnf-plugin-versionlock
-Requires:	apache-sshd >= 2.5.0
+Requires:	apache-sshd >= 2.6.0
+Requires:	ed25519-java >= 0.3.0
 Requires:	slf4j-jdk14 >= 1.7.0
 Requires:	jcl-over-slf4j >= 1.7.0
 Requires:	snmp4j >= 2.4.1
 Requires:	ovirt-dependencies >= 4.4.2
+
+# cinderlib integration
+# https://bugzilla.redhat.com/1955375
+Requires:	ceph-common
+Requires:	python3-cinderlib
+
 %{?extra_main_requires}
 
 # We can't require exactly the same version and release of the
@@ -402,7 +417,7 @@ virtualization infrastructure for Servers and Desktops.
 %package -n python%{python3_pkgversion}-%{name}-lib
 Summary:	%{ovirt_product_name_short} library
 Group:		%{ovirt_product_group}
-Requires:	python3-m2crypto >= 0.28
+Requires:	python3-cryptography
 Requires:	python3-dateutil
 Requires:	python3-daemon >= 2.1.2
 
@@ -421,14 +436,14 @@ Requires:	aopalliance >= 1.0
 Requires:	curl
 Requires:	ebay-cors-filter
 Requires:	httpd
-Requires:	java-11-openjdk-headless
+Requires:	java-11-openjdk-headless >= %{openjdk_version}
 Requires:	logrotate
 Requires:	mailcap
 Requires:	mod_ssl
 Requires:	novnc >= 1.0.0
 Requires:	python3-%{name}-lib >= %{version}-%{release}
 Requires:	openssh
-Requires:	vdsm-jsonrpc-java >= 1.5.4
+Requires:	vdsm-jsonrpc-java >= 1.6.0, vdsm-jsonrpc-java < 1.7.0
 Requires:	java-client-kubevirt >= 0.5.0
 Requires:	openssl
 Requires:	ovirt-engine-extension-aaa-jdbc >= 1.2.0
@@ -473,6 +488,7 @@ Requires:	python3-libxml2
 Requires:	logrotate
 Requires:	python3-otopi >= 1.9.0
 Requires:	python3-paramiko
+Requires:	python3-distro
 Requires(pre):	shadow-utils
 Conflicts:	%{name}-dwh < 4.4.0
 Conflicts:	%{name}-dwh-setup < 4.4.0
@@ -541,9 +557,9 @@ Requires:	python3-libselinux
 Requires:	policycoreutils-python-utils
 Requires:	python3-psycopg2
 Requires(pre):	shadow-utils
-Requires:	java-11-openjdk-headless >= 11.0.4
+Requires:	java-11-openjdk-headless >= %{openjdk_version}
 Requires:	python3-pwquality
-Requires:	python3-m2crypto >= 0.28
+Requires:	python3-cryptography
 Requires:	python3-dnf
 
 # We can drop these conflicts when
@@ -583,7 +599,7 @@ Requires:	%{name} = %{version}-%{release}
 Requires:	python3-%{name}-lib >= %{version}-%{release}
 Requires:	%{name}-tools-backup = %{version}-%{release}
 Requires:	ovirt-engine-metrics >= 1.3.4.1
-Requires:	java-11-openjdk-headless
+Requires:	java-11-openjdk-headless >= %{openjdk_version}
 Requires:	logrotate
 Requires:	python3-dateutil
 Requires:	python3-netaddr
@@ -688,7 +704,6 @@ Summary:	%{ovirt_product_name_short} health check bundler.
 Group:		%{ovirt_product_group}
 Requires:	%{name}-setup-base = %{version}-%{release}
 Requires:	makeself >= 2.2
-Requires:	python3-otopi-devtools >= 1.9.0
 
 %description health-check-bundler
 A utility for creating a bundle script that runs a health check.
@@ -899,6 +914,7 @@ common/com/woorea/openstack/sdk/main/openstack-client.jar openstack-java-sdk/ope
 common/com/woorea/openstack/sdk/main/quantum-client.jar openstack-java-sdk/quantum-client.jar
 common/com/woorea/openstack/sdk/main/quantum-model.jar openstack-java-sdk/quantum-model.jar
 common/com/woorea/openstack/sdk/main/resteasy-connector.jar openstack-java-sdk/resteasy-connector.jar
+common/net/i2p/crypto/eddsa/main/eddsa.jar
 common/org/aopalliance/main/aopalliance.jar
 common/org/apache/commons/compress/main/commons-compress.jar
 common/org/apache/commons/configuration/main/commons-configuration.jar
@@ -1039,6 +1055,7 @@ fi
 %{engine_etc}/branding/00-ovirt.brand
 %{engine_etc}/engine.conf.d/
 %{engine_etc}/cinderlib/
+%{engine_etc}/timezones/
 %config %{engine_data}/cinderlib/logger.conf
 %config %attr(0700,%{engine_user},%{engine_group}) %{engine_etc}/cinderlib/ssh_known_hosts
 
@@ -1086,6 +1103,7 @@ fi
 %dir %{engine_data}/ui-plugins
 %dir %{engine_ear}
 %{engine_data}/conf/osinfo-defaults.properties
+%{engine_data}/conf/timezones-defaults.properties
 %{engine_data}/conf/sysprep/
 %{engine_data}/files/
 %{engine_data}/icons/
@@ -1275,6 +1293,7 @@ fi
 %{engine_data}/ansible-runner-service-project/project/ovirt-host-deploy.yml
 %{engine_data}/ansible-runner-service-project/project/replace-gluster.yml
 %{engine_data}/ansible-runner-service-project/project/ovirt-host-enroll-certificate.yml
+%{engine_data}/ansible-runner-service-project/project/ovirt-host-fix-encrypted-migrations.yml
 %{engine_data}/ansible-runner-service-project/project/ovirt-host-remove.yml
 %{engine_data}/ansible-runner-service-project/project/ovirt-host-upgrade.yml
 %{engine_data}/ansible-runner-service-project/project/ovirt-host-check-upgrade.yml
@@ -1282,6 +1301,7 @@ fi
 %{engine_data}/ansible-runner-service-project/project/ovirt-host-remove-yum-conf.yml
 %{engine_data}/ansible-runner-service-project/project/ovirt-host-yum-conf.yml
 %{engine_data}/ansible-runner-service-project/project/ovirt-ova-export.yml
+%{engine_data}/ansible-runner-service-project/project/ovirt-ova-external-data.yml
 %{engine_data}/ansible-runner-service-project/project/ovirt-ova-import.yml
 %{engine_data}/ansible-runner-service-project/project/ovirt-ova-query.yml
 %{engine_data}/ansible-runner-service-project/project/ovirt-image-measure.yml
@@ -1334,6 +1354,126 @@ fi
 %{engine_data}/setup/bin/ovirt-engine-health
 
 %changelog
+* Tue Nov 09 2021 Sandro Bonazzola <sbonazzo@redhat.com> - 4.4.9.5
+- Bump version to 4.4.9.5
+
+* Wed Oct 27 2021 Martin Perina <mperina@redhat.com> - 4.4.9.4
+- Bump version to 4.4.9.4
+
+* Tue Oct 19 2021 Lev Veyde <lveyde@redhat.com> - 4.4.9.3
+- Bump version to 4.4.9.3
+
+* Wed Oct 13 2021 Lev Veyde <lveyde@redhat.com> - 4.4.9.2
+- Bump version to 4.4.9.2
+
+* Wed Oct 06 2021 Lev Veyde <lveyde@redhat.com> - 4.4.9.1
+- Bump version to 4.4.9.1
+
+* Mon Sep 13 2021 Sandro Bonazzola <sbonazzo@redhat.com> - 4.4.9
+- Bump version to 4.4.9
+
+* Tue Aug 10 2021 Lev Veyde <lveyde@redhat.com> - 4.4.8.4
+- Bump version to 4.4.8.4
+
+* Tue Aug 03 2021 Lev Veyde <lveyde@redhat.com> - 4.4.8.3
+- Bump version to 4.4.8.3
+
+* Wed Jul 28 2021 Lev Veyde <lveyde@redhat.com> - 4.4.8.2
+- Bump version to 4.4.8.2
+
+* Wed Jul 21 2021 Lev Veyde <lveyde@redhat.com> - 4.4.8.1
+- Bump version to 4.4.8.1
+
+* Wed Jul 14 2021 Sandro Bonazzola <sbonazzo@redhat.com> - 4.4.8
+- Bump version to 4.4.8
+
+* Wed Jun 30 2021 Sandro Bonazzola <sbonazzo@redhat.com> - 4.4.7.6
+- Bump version to 4.4.7.6
+
+* Wed Jun 23 2021 Lev Veyde <lveyde@redhat.com> - 4.4.7.5
+- Bump version to 4.4.7.5
+
+* Thu Jun 17 2021 Sandro Bonazzola <sbonazzo@redhat.com> - 4.4.7.4
+- Bump version to 4.4.7.4
+
+* Thu Jun 10 2021 Martin Perinae <mperina@redhat.com> - 4.4.7.3
+- Bump version to 4.4.7.3
+
+* Tue Jun 08 2021 Lev Veyde <lveyde@redhat.com> - 4.4.7.2
+- Bump version to 4.4.7.2
+
+* Thu Jun 03 2021 Sandro Bonazzola <sbonazzo@redhat.com> - 4.4.7.1
+- Bump version to 4.4.7.1
+
+* Tue May 25 2021 Lev Veyde <lveyde@redhat.com> - 4.4.7
+- Bump version to 4.4.7
+
+* Wed Apr 28 2021 Lev Veyde <lveyde@redhat.com> - 4.4.6.6
+- Bump version to 4.4.6.6
+
+* Mon Apr 19 2021 Lev Veyde <lveyde@redhat.com> - 4.4.6.5
+- Bump version to 4.4.6.5
+
+* Tue Apr 13 2021 Lev Veyde <lveyde@redhat.com> - 4.4.6.4
+- Bump version to 4.4.6.4
+
+* Wed Apr 07 2021 Lev Veyde <lveyde@redhat.com> - 4.4.6.3
+- Bump version to 4.4.6.3
+
+* Wed Mar 31 2021 Lev Veyde <lveyde@redhat.com> - 4.4.6.2
+- Bump version to 4.4.6.2
+
+* Wed Mar 24 2021 Lev Veyde <lveyde@redhat.com> - 4.4.6.1
+- Bump version to 4.4.6.1
+
+* Thu Mar 18 2021 Sandro Bonazzola <sbonazzo@redhat.com> - 4.4.6
+- Bump version to 4.4.6
+
+* Tue Mar 02 2021 Sandro Bonazzola <sbonazzo@redhat.com> - 4.4.5.8
+- Bump version to 4.4.5.8
+
+* Wed Feb 24 2021 Lev Veyde <lveyde@redhat.com> - 4.4.5.7
+- Bump version to 4.4.5.7
+
+* Wed Feb 17 2021 Lev Veyde <lveyde@redhat.com> - 4.4.5.6
+- Bump version to 4.4.5.6
+
+* Wed Feb 10 2021 Lev Veyde <lveyde@redhat.com> - 4.4.5.5
+- Bump version to 4.4.5.5
+
+* Wed Feb 03 2021 Lev Veyde <lveyde@redhat.com> - 4.4.5.4
+- Bump version to 4.4.5.4
+
+* Wed Jan 27 2021 Lev Veyde <lveyde@redhat.com> - 4.4.5.3
+- Bump version to 4.4.5.3
+
+* Tue Jan 19 2021 Martin Perina <mperina@redhat.com> - 4.4.5.2
+- Bump version to 4.4.5.2
+
+* Tue Jan 19 2021 Lev Veyde <lveyde@redhat.com> - 4.4.5.1
+- Bump version to 4.4.5.1
+
+* Mon Jan 11 2021 Lev Veyde <lveyde@redhat.com> - 4.4.5
+- Bump version to 4.4.5
+
+* Tue Dec 15 2020 Sandro Bonazzola <sbonazzo@redhat.com> - 4.4.4.5
+- Bump version to 4.4.4.5
+
+* Wed Dec 09 2020 Lev Veyde <lveyde@redhat.com> - 4.4.4.4
+- Bump version to 4.4.4.4
+
+* Tue Dec 01 2020 Lev Veyde <lveyde@redhat.com> - 4.4.4.3
+- Bump version to 4.4.4.3
+
+* Wed Nov 25 2020 Sandro Bonazzola <sbonazzo@redhat.com> - 4.4.4.2
+- Bump version to 4.4.4.2
+
+* Wed Nov 18 2020 Sandro Bonazzola <sbonazzo@redhat.com> - 4.4.4.1
+- Bump version to 4.4.4.1
+
+* Wed Nov 11 2020 Sandro Bonazzola <sbonazzo@redhat.com> - 4.4.4
+- Bump version to 4.4.4
+
 * Mon Nov 09 2020 Sandro Bonazzola <sbonazzo@redhat.com> - 4.4.3.11
 - Bump version to 4.4.3.11
 
