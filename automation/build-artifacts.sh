@@ -29,8 +29,12 @@ export BUILD_JAVA_OPTS_MAVEN="\
     -Dovirt.surefire.reportsDirectory=${PWD}/exported-artifacts/tests \
 "
 
+if [ -z "${MILESTONE}" ]; then
+    MILESTONE=`git branch --show-current`;
+fi
+
 # For milestone (non-release) master builds, build permutations for chrome and firefox
-if [ -n "${MILESTONE}" ] && [ "${MILESTONE}" == "master" ]; then
+if [ -n "${MILESTONE}" ] && [[ "${MILESTONE}" != "supervm-releases"* ]]; then
 	export EXTRA_BUILD_FLAGS="-gs $MAVEN_SETTINGS \
 	    -D gwt.userAgent=gecko1_8,safari \
 	"
@@ -88,14 +92,14 @@ rpmbuild \
     -ts ./*.gz
 
 # install any build requirements
-yum-builddep output/*src.rpm
+yum-builddep -y output/*src.rpm
 
 # build minimal rpms for CI, fuller ones for releases
 BUILD_UT=0
 BUILD_ALL_USER_AGENTS=0
 BUILD_LOCALES=0
 
-if [ -z "${MILESTONE}" ] || { [ -n "${MILESTONE}" ] && [ "${MILESTONE}" != "master" ]; }; then
+if [ -z "${MILESTONE}" ] || { [ -n "${MILESTONE}" ] && [[ "${MILESTONE}" == "supervm-releases"* ]]; }; then
 	BUILD_UT=1
 	BUILD_ALL_USER_AGENTS=1
 	BUILD_LOCALES=1
