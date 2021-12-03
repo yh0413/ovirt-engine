@@ -237,7 +237,7 @@ Name:		ovirt-engine
      #end if
    #end if
 #end for
-Version:	$version
+Version:	4.4.9.5
 Release:	$downstream_rpm_release_prefix$release$release_suffix%{?dist}
 %endif
 Summary:	Management server for Open Virtualization
