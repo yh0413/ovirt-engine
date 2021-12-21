@@ -24,6 +24,16 @@ public enum AddVdsActionParametersMapper implements BiFunction<VDS, HostModel, A
         addVdsActionParams.setFenceAgents(model.getFenceAgentListModel().getFenceAgents());
         addVdsActionParams.setHostedEngineDeployConfiguration(
                 new HostedEngineDeployConfiguration(model.getHostedEngineHostModel().getSelectedItem()));
+        addVdsActionParams.setActivateHost(model.getActivateHostAfterInstall().getEntity());
+        addVdsActionParams.setRebootHost(model.getRebootHostAfterInstall().getEntity());
+
+        if (model.getProviders().getSelectedItem() != null) {
+            addVdsActionParams.getVdsStaticData().setHostProviderId(model.getProviders().getSelectedItem().getId());
+        }
+
+        addVdsActionParams.setAffinityGroups(model.getAffinityGroupList().getSelectedItems());
+        addVdsActionParams.setAffinityLabels(model.getLabelList().getSelectedItems());
+
         return addVdsActionParams;
     }
 }

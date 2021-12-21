@@ -117,7 +117,7 @@ public abstract class BackendTemplatesBasedResourceTest<R extends Template, Q, C
             setUpGetVirtioScsiExpectations(0, 1, 2);
             setUpGetSoundcardExpectations(0, 1, 2);
             setUpGetRngDeviceExpectations(0, 1, 2);
-            setUpGetBallooningExpectations(3);
+            setUpGetTpmExpectations(0, 1, 2);
         }
 
         setUpGetGraphicsExpectations(3);
@@ -180,21 +180,13 @@ public abstract class BackendTemplatesBasedResourceTest<R extends Template, Q, C
 
     protected abstract R getRestModel(int index);
 
-    protected void setUpGetBallooningExpectations(Integer... idxs) {
-        for (int i : idxs) {
-            setUpGetEntityExpectations(QueryType.IsBalloonEnabled,
+    protected void setUpGetTpmExpectations(int ... idxs) {
+        for (int i = 0; i < idxs.length; i++) {
+            setUpGetEntityExpectations(QueryType.GetTpmDevices,
                     IdQueryParameters.class,
-                    new String[]{"Id"},
-                    new Object[]{GUIDS[i]},
-                    true);
+                    new String[] { "Id" },
+                    new Object[] { GUIDS[idxs[i]] },
+                    new ArrayList<>());
         }
-    }
-
-    protected void setUpGetBallooningExpectations(int times) {
-        List<Integer> idxs = new ArrayList<>();
-        for (int i = 0; i < times; i++) {
-            idxs.add(i);
-        }
-        setUpGetBallooningExpectations(idxs.toArray(new Integer[times]));
     }
 }

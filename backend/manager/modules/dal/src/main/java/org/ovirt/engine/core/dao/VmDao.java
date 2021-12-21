@@ -171,7 +171,7 @@ public interface VmDao extends Dao {
      *            the VDS id
      * @return the list of VMs
      */
-    Map<Guid, VM> getAllRunningByVds(Guid vds);
+    List<VM> getMonitoredVmsRunningByVds(Guid vds);
 
     /**
      * Finds the list of VMs using the supplied query.
@@ -389,4 +389,70 @@ public interface VmDao extends Dao {
      * @return the running VM names with with the specified ISO disk attached as a CDROM
      */
     List<String> getAllRunningNamesWithSpecificIsoAttached(Guid isoDiskId);
+
+    /**
+     * Retrieve TPM data for the specified VM.
+     *
+     * @param vmId the VM id
+     *
+     * @return Pair of data and its hash; any of the pair values can be null if not available
+     */
+    Pair<String, String> getTpmData(Guid vmId);
+
+    /**
+     * Stores the specified TPM data for the given VM.
+     *
+     * @param vmId the VM id
+     * @param tpmData the data
+     * @param tpmDataHash hash of the data as obtained from the VDS
+     */
+    void updateTpmData(Guid vmId, String tpmData, String tpmDataHash);
+
+    /**
+     * Deletes the TPM data for the given VM.
+     *
+     * @param vmId the VM id
+     */
+    void deleteTpmData(Guid vmId);
+
+    /**
+     * Copies the specified TPM data from one VM to another one.
+     *
+     * @param sourceVmId id of the VM to copy the data from
+     * @param targetVmId id of the VM to copy the data to
+     */
+    void copyTpmData(Guid sourceVmId, Guid targetVmId);
+
+    /**
+     * Returns the secure boot NVRAM data for the specified VM.
+     *
+     * @param vmId the VM id
+     *
+     * @return Pair of data and its hash; any of the pair values can be null if not available
+     */
+    Pair<String, String> getNvramData(Guid vmId);
+
+    /**
+     * Stores the specified secure boot NVRAM data for the given VM.
+     *
+     * @param vmId the VM id
+     * @param nvramData the data
+     * @param nvramDataHash hash of the data as obtained from the VDS
+     */
+    void updateNvramData(Guid vmId, String nvramData, String nvramDataHash);
+
+    /**
+     * Deletes the NVRAM data for the given VM.
+     *
+     * @param vmId the VM id
+     */
+    void deleteNvramData(Guid vmId);
+
+    /**
+     * Copies the specified NVRAM data from one VM to another one.
+     *
+     * @param sourceVmId id of the VM to copy the data from
+     * @param targetVmId id of the VM to copy the data to
+     */
+    void copyNvramData(Guid sourceVmId, Guid targetVmId);
 }

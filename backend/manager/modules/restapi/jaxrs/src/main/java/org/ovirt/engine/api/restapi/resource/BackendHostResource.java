@@ -158,6 +158,10 @@ public class BackendHostResource extends AbstractBackendActionableResource<Host,
         boolean activate = action.isSetActivate() ? action.isActivate() :
             ParametersHelper.getBooleanParameter(httpHeaders, uriInfo, BackendHostsResource.ACTIVATE, true, false);
         params.setActivateHost(activate);
+        // Default value for 'reboot' is true
+        boolean reboot = action.isSetReboot() ? action.isReboot() :
+                ParametersHelper.getBooleanParameter(httpHeaders, uriInfo, BackendHostsResource.REBOOT, true, true);
+        params.setRebootHost(reboot);
         return doAction(ActionType.UpdateVds,
                         params,
                         action);
@@ -217,10 +221,13 @@ public class BackendHostResource extends AbstractBackendActionableResource<Host,
                 }
             }
         }
-        // by default activate the host after approval
+        // By default activate and reboot the host after approval
         boolean activate = action.isSetActivate() ? action.isActivate() :
             ParametersHelper.getBooleanParameter(httpHeaders, uriInfo, BackendHostsResource.ACTIVATE, true, true);
         params.setActivateHost(activate);
+        boolean reboot = action.isSetReboot() ? action.isReboot() :
+                ParametersHelper.getBooleanParameter(httpHeaders, uriInfo, BackendHostsResource.REBOOT, true, true);
+        params.setRebootHost(reboot);
 
         return doAction(ActionType.ApproveVds,
                         params,
@@ -515,6 +522,17 @@ public class BackendHostResource extends AbstractBackendActionableResource<Host,
         } catch (Exception e) {
             return handleError(e, false);
         }
+    }
+
+    @Override
+    public Response discoverIscsi(Action action) {
+        //In terms of implementation, this method does the same as iscsiDiscover.
+        //But since the two are annotated differently in ovirt-engine-api-model,
+        //the SDKS will interpret the response differently.
+        //For iscsiDiscover, the SDKs will consider action.iscsiTargets in the Response object.
+        //For discoverIscsi, the SDKs will consider action.iscsiDetails in the Response object.
+        //This fixes https://bugzilla.redhat.com/1926819
+        return iscsiDiscover(action);
     }
 
     @Override

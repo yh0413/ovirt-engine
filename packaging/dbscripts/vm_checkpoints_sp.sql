@@ -19,7 +19,8 @@ CREATE OR REPLACE FUNCTION InsertVmCheckpoint (
     v_vm_id UUID,
     v_parent_id UUID,
     v__create_date TIMESTAMP WITH TIME ZONE,
-    v_checkpoint_xml TEXT
+    v_state TEXT,
+    v_description VARCHAR(1024)
     )
 RETURNS VOID AS $PROCEDURE$
 BEGIN
@@ -28,14 +29,16 @@ BEGIN
         vm_id,
         parent_id,
         _create_date,
-        checkpoint_xml
+        state,
+        description
         )
     VALUES (
         v_checkpoint_id,
         v_vm_id,
         v_parent_id,
         v__create_date,
-        v_checkpoint_xml
+        v_state,
+        v_description
         );
 END;$PROCEDURE$
 LANGUAGE plpgsql;
@@ -44,7 +47,8 @@ CREATE OR REPLACE FUNCTION UpdateVmCheckpoint (
     v_checkpoint_id UUID,
     v_vm_id UUID,
     v_parent_id UUID,
-    v_checkpoint_xml TEXT
+    v_state TEXT,
+    v_description VARCHAR(1024)
     )
 RETURNS VOID AS $PROCEDURE$
 BEGIN
@@ -52,19 +56,8 @@ BEGIN
     SET checkpoint_id = v_checkpoint_id,
         vm_id = v_vm_id,
         parent_id = v_parent_id,
-        checkpoint_xml = v_checkpoint_xml
-    WHERE checkpoint_id = v_checkpoint_id;
-END;$PROCEDURE$
-LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION UpdateVmCheckpointXml (
-    v_checkpoint_id UUID,
-    v_checkpoint_xml TEXT
-    )
-RETURNS VOID AS $PROCEDURE$
-BEGIN
-    UPDATE vm_checkpoints
-    SET checkpoint_xml = v_checkpoint_xml
+        state = v_state,
+        description = v_description
     WHERE checkpoint_id = v_checkpoint_id;
 END;$PROCEDURE$
 LANGUAGE plpgsql;
@@ -112,6 +105,29 @@ RETURNS VOID AS $PROCEDURE$
 BEGIN
     DELETE
     FROM vm_checkpoints
+    WHERE vm_id = v_vm_id;
+END;$PROCEDURE$
+LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION GetVmCheckpointByVmCheckpointParentId (v_checkpoint_id UUID)
+RETURNS SETOF vm_checkpoints STABLE AS $PROCEDURE$
+BEGIN
+    RETURN QUERY
+
+    SELECT *
+    FROM vm_checkpoints
+    WHERE parent_id = v_checkpoint_id;
+END;$PROCEDURE$
+LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION InvalidateAllCheckpointsByVmId (
+    v_vm_id UUID,
+    v_state TEXT
+    )
+RETURNS VOID AS $PROCEDURE$
+BEGIN
+    UPDATE vm_checkpoints
+    SET state = v_state
     WHERE vm_id = v_vm_id;
 END;$PROCEDURE$
 LANGUAGE plpgsql;

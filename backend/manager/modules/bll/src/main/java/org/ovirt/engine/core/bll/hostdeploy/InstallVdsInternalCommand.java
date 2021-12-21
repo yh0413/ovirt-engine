@@ -20,12 +20,16 @@ import org.ovirt.engine.core.bll.NonTransactiveCommandAttribute;
 import org.ovirt.engine.core.bll.VdsCommand;
 import org.ovirt.engine.core.bll.context.CommandContext;
 import org.ovirt.engine.core.bll.hostedengine.HostedEngineHelper;
+import org.ovirt.engine.core.bll.job.ExecutionHandler;
 import org.ovirt.engine.core.bll.network.NetworkConfigurator;
 import org.ovirt.engine.core.bll.utils.EngineSSHClient;
 import org.ovirt.engine.core.bll.utils.GlusterUtil;
 import org.ovirt.engine.core.common.AuditLogType;
+import org.ovirt.engine.core.common.action.ActionReturnValue;
+import org.ovirt.engine.core.common.action.ActionType;
 import org.ovirt.engine.core.common.action.LockProperties;
 import org.ovirt.engine.core.common.action.LockProperties.Scope;
+import org.ovirt.engine.core.common.action.SshHostRebootParameters;
 import org.ovirt.engine.core.common.action.VdsOperationActionParameters.AuthenticationMethod;
 import org.ovirt.engine.core.common.action.hostdeploy.InstallVdsParameters;
 import org.ovirt.engine.core.common.businessentities.Cluster;
@@ -49,9 +53,8 @@ import org.ovirt.engine.core.common.utils.ansible.AnsibleConstants;
 import org.ovirt.engine.core.common.utils.ansible.AnsibleExecutor;
 import org.ovirt.engine.core.common.utils.ansible.AnsibleReturnCode;
 import org.ovirt.engine.core.common.utils.ansible.AnsibleReturnValue;
-import org.ovirt.engine.core.common.utils.ansible.AnsibleRunnerHTTPClient;
+import org.ovirt.engine.core.common.utils.ansible.AnsibleRunnerHttpClient;
 import org.ovirt.engine.core.compat.Guid;
-import org.ovirt.engine.core.compat.Version;
 import org.ovirt.engine.core.dal.dbbroker.auditloghandling.AuditLogable;
 import org.ovirt.engine.core.dal.dbbroker.auditloghandling.AuditLogableImpl;
 import org.ovirt.engine.core.dao.ClusterDao;
@@ -95,7 +98,7 @@ public class InstallVdsInternalCommand<T extends InstallVdsParameters> extends V
     private AnsibleExecutor ansibleExecutor;
 
     @Inject
-    private AnsibleRunnerHTTPClient runnerClient;
+    private AnsibleRunnerHttpClient runnerClient;
 
     private EngineLocalConfig config = EngineLocalConfig.getInstance();
 
@@ -200,6 +203,22 @@ public class InstallVdsInternalCommand<T extends InstallVdsParameters> extends V
             markCurrentCmdlineAsStored();
             markVdsReinstalled();
             configureManagementNetwork();
+
+            if (getParameters().getRebootHost()) {
+                SshHostRebootParameters params = new SshHostRebootParameters(getParameters().getVdsId());
+                params.setPrevVdsStatus(getParameters().getPrevVdsStatus());
+                params.setWaitOnRebootSynchronous(true);
+                ActionReturnValue returnValue = runInternalAction(ActionType.SshHostReboot,
+                        params,
+                        ExecutionHandler.createInternalJobContext());
+                if (!returnValue.getSucceeded()) {
+                    setVdsStatus(VDSStatus.InstallFailed);
+                    log.error("Engine failed to restart via ssh host '{}' ('{}') after host install",
+                            getVds().getName(),
+                            getVds().getId());
+                    return;
+                }
+            }
             if (!getParameters().getActivateHost()) {
                 setVdsStatus(VDSStatus.Maintenance);
             } else {
@@ -246,7 +265,7 @@ public class InstallVdsInternalCommand<T extends InstallVdsParameters> extends V
             VDS vds = getVds();
             boolean isGlusterServiceSupported = hostCluster.supportsGlusterService();
             String tunedProfile = isGlusterServiceSupported ? hostCluster.getGlusterTunedProfile() : null;
-            Version clusterVersion = hostCluster.getCompatibilityVersion();
+            String clusterVersion = hostCluster.getCompatibilityVersion().getValue();
             AnsibleCommandConfig commandConfig = new AnsibleCommandConfig()
                     .hosts(vds)
                     .variable("host_deploy_cluster_version", clusterVersion)
@@ -259,7 +278,7 @@ public class InstallVdsInternalCommand<T extends InstallVdsParameters> extends V
                     .variable("host_deploy_override_firewall", getParameters().getOverrideFirewall())
                     .variable("host_deploy_firewall_type", hostCluster.getFirewallType().name())
                     .variable("ansible_port", vds.getSshPort())
-                    .variable("host_deploy_post_tasks", AnsibleConstants.HOST_DEPLOY_POST_TASKS_FILE_PATH)
+                    .variable("host_deploy_post_tasks", AnsibleConstants.HOST_DEPLOY_POST_TASKS_FILE_PATH.toString())
                     .variable("host_deploy_ovn_tunneling_interface", NetworkUtils.getHostIp(vds))
                     .variable("host_deploy_ovn_central", getOvnCentral())
                     .variable("host_deploy_vnc_tls", hostCluster.isVncEncryptionEnabled() ? "true" : "false")
@@ -512,7 +531,7 @@ public class InstallVdsInternalCommand<T extends InstallVdsParameters> extends V
     }
 
     private String getOvnCentral() {
-        Guid providerId = getParameters().getNetworkProviderId();
+        Guid providerId = getCluster().getDefaultNetworkProviderId();
         if (providerId != null) {
             Provider provider = providerDao.get(providerId);
             if (provider.getType() == ProviderType.EXTERNAL_NETWORK ) {

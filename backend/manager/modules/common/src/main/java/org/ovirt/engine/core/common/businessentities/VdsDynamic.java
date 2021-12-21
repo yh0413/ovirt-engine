@@ -214,6 +214,10 @@ public class VdsDynamic implements BusinessEntityWithStatus<Guid, VDSStatus> {
 
     private boolean backupEnabled;
 
+    private boolean coldBackupEnabled;
+
+    private boolean clearBitmapsEnabled;
+
     @Valid
     private DnsResolverConfiguration reportedDnsResolverConfiguration;
 
@@ -228,6 +232,8 @@ public class VdsDynamic implements BusinessEntityWithStatus<Guid, VDSStatus> {
     private boolean fipsEnabled;
 
     private String bootUuid;
+
+    private boolean cdChangePdiv;
 
     public VdsDynamic() {
         rpmVersion = new RpmVersion();
@@ -927,6 +933,22 @@ public class VdsDynamic implements BusinessEntityWithStatus<Guid, VDSStatus> {
         backupEnabled = value;
     }
 
+    public boolean isColdBackupEnabled() {
+        return coldBackupEnabled;
+    }
+
+    public void setColdBackupEnabled(Boolean coldBackupEnabled) {
+        this.coldBackupEnabled = coldBackupEnabled;
+    }
+
+    public boolean isClearBitmapsEnabled() {
+        return clearBitmapsEnabled;
+    }
+
+    public void setClearBitmapsEnabled(boolean clearBitmapsEnabled) {
+        this.clearBitmapsEnabled = clearBitmapsEnabled;
+    }
+
     public Map<String, Object> getSupportedBlockSize() {
         return supportedBlockSize;
     }
@@ -965,6 +987,14 @@ public class VdsDynamic implements BusinessEntityWithStatus<Guid, VDSStatus> {
 
     public void setBootUuid(String bootUuid) {
         this.bootUuid = bootUuid;
+    }
+
+    public boolean isCdChangePdiv() {
+        return cdChangePdiv;
+    }
+
+    public void setCdChangePdiv(boolean cdChangePdiv) {
+        this.cdChangePdiv = cdChangePdiv;
     }
 
     @Override
@@ -1040,12 +1070,15 @@ public class VdsDynamic implements BusinessEntityWithStatus<Guid, VDSStatus> {
                 vncEncryptionEnabled,
                 connectorInfo,
                 backupEnabled,
+                coldBackupEnabled,
+                clearBitmapsEnabled,
                 supportedDomainVersions,
                 supportedBlockSize,
                 tscFrequency,
                 tscScalingEnabled,
                 fipsEnabled,
-                bootUuid
+                bootUuid,
+                cdChangePdiv
         );
     }
 
@@ -1130,11 +1163,14 @@ public class VdsDynamic implements BusinessEntityWithStatus<Guid, VDSStatus> {
                 && vncEncryptionEnabled == other.vncEncryptionEnabled
                 && Objects.equals(connectorInfo, other.connectorInfo)
                 && backupEnabled == other.backupEnabled
+                && coldBackupEnabled == other.coldBackupEnabled
+                && clearBitmapsEnabled == other.clearBitmapsEnabled
                 && Objects.equals(supportedDomainVersions, other.supportedDomainVersions)
                 && Objects.equals(supportedBlockSize, other.supportedBlockSize)
                 && Objects.equals(tscFrequency, other.tscFrequency)
                 && tscScalingEnabled == other.tscScalingEnabled
                 && fipsEnabled == other.fipsEnabled
-                && Objects.equals(bootUuid, other.bootUuid);
+                && Objects.equals(bootUuid, other.bootUuid)
+                && cdChangePdiv == other.cdChangePdiv;
     }
 }

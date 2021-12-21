@@ -41,6 +41,7 @@ import org.ovirt.engine.core.common.action.ImportVmFromExternalProviderParameter
 import org.ovirt.engine.core.common.action.ImportVmFromExternalProviderParameters.Phase;
 import org.ovirt.engine.core.common.action.RemoveAllVmImagesParameters;
 import org.ovirt.engine.core.common.businessentities.ArchitectureType;
+import org.ovirt.engine.core.common.businessentities.BiosType;
 import org.ovirt.engine.core.common.businessentities.OriginType;
 import org.ovirt.engine.core.common.businessentities.Snapshot.SnapshotStatus;
 import org.ovirt.engine.core.common.businessentities.StorageDomainStatus;
@@ -112,6 +113,14 @@ implements SerialChildExecutingCommand, QuotaStorageDependent {
     }
 
     @Override
+    protected void initBiosType() {
+        if (getVm().getBiosType() == null) {
+            getVm().setBiosType(BiosType.I440FX_SEA_BIOS);
+        }
+        super.initBiosType();
+    }
+
+    @Override
     protected boolean validate() {
         if (!super.validate()) {
             return false;
@@ -140,10 +149,6 @@ implements SerialChildExecutingCommand, QuotaStorageDependent {
         }
 
         if (Guid.isNullOrEmpty(getVdsId()) && !validate(validateEligibleProxyHostExists())) {
-            return false;
-        }
-
-        if (!validateBallonDevice()) {
             return false;
         }
 
@@ -235,7 +240,8 @@ implements SerialChildExecutingCommand, QuotaStorageDependent {
                 String.format("$storagePoolName %s", getStoragePoolName()));
     }
 
-    private boolean isHostInSupportedClusterForProxyHost(VDS host) {
+    protected boolean isHostInSupportedClusterForProxyHost(VDS host) {
+        // virt-v2v is not available on PPC
         return clusterDao.get(host.getClusterId()).getArchitecture() != ArchitectureType.ppc64;
     }
 

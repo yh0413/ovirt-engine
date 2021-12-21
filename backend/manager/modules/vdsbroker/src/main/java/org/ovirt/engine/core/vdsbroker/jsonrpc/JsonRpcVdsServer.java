@@ -3,6 +3,7 @@ package org.ovirt.engine.core.vdsbroker.jsonrpc;
 import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,7 +12,9 @@ import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.ovirt.engine.core.common.action.VmExternalDataKind;
 import org.ovirt.engine.core.common.businessentities.storage.ImageTicket;
 import org.ovirt.engine.core.compat.Guid;
 import org.ovirt.engine.core.utils.threadpool.ThreadPoolUtil;
@@ -48,7 +51,6 @@ import org.ovirt.engine.core.vdsbroker.irsbroker.StoragePoolInfo;
 import org.ovirt.engine.core.vdsbroker.irsbroker.UUIDListReturn;
 import org.ovirt.engine.core.vdsbroker.irsbroker.VmBackupInfo;
 import org.ovirt.engine.core.vdsbroker.irsbroker.VmCheckpointIds;
-import org.ovirt.engine.core.vdsbroker.irsbroker.VmCheckpointInfo;
 import org.ovirt.engine.core.vdsbroker.vdsbroker.BooleanReturn;
 import org.ovirt.engine.core.vdsbroker.vdsbroker.DeviceInfoReturn;
 import org.ovirt.engine.core.vdsbroker.vdsbroker.DevicesVisibilityMapReturn;
@@ -84,6 +86,7 @@ import org.ovirt.engine.core.vdsbroker.vdsbroker.VMInfoListReturn;
 import org.ovirt.engine.core.vdsbroker.vdsbroker.VMListReturn;
 import org.ovirt.engine.core.vdsbroker.vdsbroker.VMNamesListReturn;
 import org.ovirt.engine.core.vdsbroker.vdsbroker.VdsProperties;
+import org.ovirt.engine.core.vdsbroker.vdsbroker.VmExternalDataReturn;
 import org.ovirt.engine.core.vdsbroker.vdsbroker.VmInfoReturn;
 import org.ovirt.engine.core.vdsbroker.vdsbroker.VolumeInfoReturn;
 import org.ovirt.vdsm.jsonrpc.client.BrokerCommandCallback;
@@ -245,6 +248,13 @@ public class JsonRpcVdsServer implements IVdsServer {
     }
 
     @Override
+    public StatusOnlyReturn reset(String vmId) {
+        JsonRpcRequest request = new RequestBuilder("VM.reset").withParameter("vmID", vmId).build();
+        Map<String, Object> response = new FutureMap(this.client, request);
+        return new StatusOnlyReturn(response);
+    }
+
+    @Override
     public StatusOnlyReturn setDestroyOnReboot(String vmId) {
         JsonRpcRequest request = new RequestBuilder("VM.setDestroyOnReboot").withParameter("vmID", vmId).build();
         Map<String, Object> response = new FutureMap(this.client, request);
@@ -389,6 +399,18 @@ public class JsonRpcVdsServer implements IVdsServer {
                 new FutureMap(this.client, request).withResponseKey("statsList")
                         .withResponseType(Object[].class);
         return new VMInfoListReturn(response);
+    }
+
+    @Override
+    public VmExternalDataReturn getVmExternalData(String vmId, VmExternalDataKind kind, boolean forceUpdate) {
+        JsonRpcRequest request =
+                new RequestBuilder("VM.getExternalData").withParameter("vmID", vmId)
+                        .withParameter("kind", kind.getExternal())
+                        .withParameter("forceUpdate", forceUpdate)
+                        .build();
+        Map<String, Object> response =
+                new FutureMap(this.client, request).withResponseKey("info");
+        return new VmExternalDataReturn(response);
     }
 
     @Override
@@ -1055,13 +1077,17 @@ public class JsonRpcVdsServer implements IVdsServer {
 
     @Override
     public StatusOnlyReturn snapshot(String vmId, Map<String, String>[] disks, String memory, boolean frozen, String jobUUID, int timeout) {
+        String timeoutType = "freeze_timeout";
+        if (StringUtils.isNotEmpty(memory)) {
+            timeoutType = "timeout";
+        }
         JsonRpcRequest request =
                 new RequestBuilder("VM.snapshot").withParameter("vmID", vmId)
                         .withParameter("snapDrives", new ArrayList<>(Arrays.asList(disks)))
                         .withOptionalParameter("snapMemory", memory)
                         .withParameter("frozen", frozen)
                         .withParameter("jobUUID", jobUUID)
-                        .withParameter("timeout", timeout)
+                        .withParameter(timeoutType, timeout)
                         .build();
         Map<String, Object> response = new FutureMap(this.client, request);
         return new StatusOnlyReturn(response);
@@ -2262,7 +2288,7 @@ public class JsonRpcVdsServer implements IVdsServer {
     }
 
     @Override
-    public VmCheckpointIds redefineVmCheckpoints(String vmId, Map<String, Object>[] checkpoints) {
+    public VmCheckpointIds redefineVmCheckpoints(String vmId, Collection<Map<String, Object>> checkpoints) {
         JsonRpcRequest request =
                 new RequestBuilder("VM.redefine_checkpoints")
                         .withParameter("vmID", vmId)
@@ -2295,14 +2321,38 @@ public class JsonRpcVdsServer implements IVdsServer {
     }
 
     @Override
-    public VmCheckpointInfo getVmCheckpointsXML(String vmId, String checkpointId) {
+    public StatusOnlyReturn addBitmap(String jobId, Map<String, Object> volInfo, String bitmapName) {
         JsonRpcRequest request =
-                new RequestBuilder("VM.dump_checkpoint")
-                        .withParameter("vmID", vmId)
-                        .withParameter("checkpoint_id", checkpointId)
+                new RequestBuilder("SDM.add_bitmap")
+                        .withParameter("job_id", jobId)
+                        .withParameter("vol_info", volInfo)
+                        .withParameter("bitmap", bitmapName)
                         .build();
-        Map<String, Object> response = new FutureMap(this.client, request).withIgnoreResponseKey();
-        return new VmCheckpointInfo(response);
+        Map<String, Object> response = new FutureMap(this.client, request);
+        return new StatusOnlyReturn(response);
+    }
+
+    @Override
+    public StatusOnlyReturn removeBitmap(String jobId, Map<String, Object> volInfo, String bitmapName) {
+        JsonRpcRequest request =
+                new RequestBuilder("SDM.remove_bitmap")
+                        .withParameter("job_id", jobId)
+                        .withParameter("vol_info", volInfo)
+                        .withParameter("bitmap", bitmapName)
+                        .build();
+        Map<String, Object> response = new FutureMap(this.client, request);
+        return new StatusOnlyReturn(response);
+    }
+
+    @Override
+    public StatusOnlyReturn clearBitmaps(String jobId, Map<String, Object> volInfo) {
+        JsonRpcRequest request =
+                new RequestBuilder("SDM.clear_bitmaps")
+                        .withParameter("job_id", jobId)
+                        .withParameter("vol_info", volInfo)
+                        .build();
+        Map<String, Object> response = new FutureMap(this.client, request);
+        return new StatusOnlyReturn(response);
     }
 
     @Override
@@ -2455,10 +2505,10 @@ public class JsonRpcVdsServer implements IVdsServer {
     }
 
     @Override
-    public StatusOnlyReturn sealDisks(String templateId, String jobId, String storagePoolId, List<Map<String, Object>> images) {
+    public StatusOnlyReturn sealDisks(String vmId, String jobId, String storagePoolId, List<Map<String, Object>> images) {
         JsonRpcRequest request =
                 new RequestBuilder("VM.seal")
-                        .withParameter("vmID", templateId)
+                        .withParameter("vmID", vmId)
                         .withParameter("job_id", jobId)
                         .withParameter("sp_id", storagePoolId)
                         .withOptionalParameterAsList("images", images)
@@ -2594,6 +2644,36 @@ public class JsonRpcVdsServer implements IVdsServer {
         JsonRpcRequest request =
                 new RequestBuilder("ManagedVolume.detach_volume")
                         .withParameter("vol_id", volumeId.toString())
+                        .build();
+        Map<String, Object> response = new FutureMap(this.client, request);
+        return new StatusOnlyReturn(response);
+    }
+
+    @Override
+    public VDSInfoReturn getLeaseStatus(String leaseUUID, String sdUUID) {
+        Map<String, Object> leaseDict = new HashMap<>();
+        leaseDict.put("lease_id", leaseUUID);
+        leaseDict.put("sd_id", sdUUID);
+
+        JsonRpcRequest request =
+                new RequestBuilder("Lease.status")
+                        .withParameter("lease", leaseDict)
+                        .build();
+        Map<String, Object> response = new FutureMap(this.client, request);
+        return new VDSInfoReturn(response);
+    }
+
+
+    @Override
+    public StatusOnlyReturn fenceLeaseJob(String leaseUUID, String sdUUID, Map<String, Object> leaseMetadata) {
+        Map<String, Object> leaseDict = new HashMap<>();
+        leaseDict.put("lease_id", leaseUUID);
+        leaseDict.put("sd_id", sdUUID);
+
+        JsonRpcRequest request =
+                new RequestBuilder("Lease.fence")
+                        .withParameter("lease", leaseDict)
+                        .withParameter("metadata", leaseMetadata)
                         .build();
         Map<String, Object> response = new FutureMap(this.client, request);
         return new StatusOnlyReturn(response);

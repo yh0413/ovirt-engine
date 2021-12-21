@@ -54,7 +54,6 @@ public class BackendInstanceTypeResourceTest
         setUriInfo(setUpBasicUriExpectations());
         setUpGetGraphicsExpectations(1);
         setUpGetEntityExpectations(1);
-        setUpGetBallooningExpectations();
 
         verifyModel(resource.get(), 0);
     }
@@ -76,7 +75,6 @@ public class BackendInstanceTypeResourceTest
     public void testGetConsoleAware(boolean allContent) {
         setUriInfo(setUpBasicUriExpectations());
         setUpGetEntityExpectations(1);
-        setUpGetBallooningExpectations();
 
         if (allContent) {
             List<String> populates = new ArrayList<>();
@@ -86,6 +84,7 @@ public class BackendInstanceTypeResourceTest
             setUpGetVirtioScsiExpectations(0);
             setUpGetSoundcardExpectations(0);
             setUpGetRngDeviceExpectations(0);
+            setUpGetTpmExpectations(0);
         }
         setUpGetGraphicsExpectations(1);
 
@@ -128,7 +127,6 @@ public class BackendInstanceTypeResourceTest
     public void testUpdate() {
         setUpGetGraphicsExpectations(1);
         setUpUpdateExpectations();
-        setUpGetBallooningExpectations();
 
         setUriInfo(setUpActionExpectations(ActionType.UpdateVmTemplate,
                 UpdateVmTemplateParameters.class,
@@ -178,6 +176,7 @@ public class BackendInstanceTypeResourceTest
         setUpGetVirtioScsiExpectations(0);
         setUpGetSoundcardExpectations(0);
         setUpGetRngDeviceExpectations(0);
+        setUpGetTpmExpectations(0);
     }
 
     protected void setUpGetGraphicsExpectations(int times) {
@@ -190,18 +189,10 @@ public class BackendInstanceTypeResourceTest
         }
     }
 
-    protected void setUpGetBallooningExpectations() {
-        setUpGetEntityExpectations(QueryType.IsBalloonEnabled,
-                IdQueryParameters.class,
-                new String[] { "Id" },
-                new Object[] { GUIDS[0] },
-                true);
-    }
     @Test
     public void testRemove() {
         setUpGetGraphicsExpectations(1);
         setUpGetEntityExpectations(1);
-        setUpGetBallooningExpectations();
         setUriInfo(setUpActionExpectations(
                 ActionType.RemoveVmTemplate,
                 VmTemplateManagementParameters.class,
@@ -235,6 +226,16 @@ public class BackendInstanceTypeResourceTest
                     new String[] { "Id" },
                     new Object[] { GUIDS[0] },
                     notFound ? null : getEntity(0));
+        }
+    }
+
+    private void setUpGetTpmExpectations(int ... idxs) {
+        for (int i = 0; i < idxs.length; i++) {
+            setUpGetEntityExpectations(QueryType.GetTpmDevices,
+                    IdQueryParameters.class,
+                    new String[] { "Id" },
+                    new Object[] { GUIDS[idxs[i]] },
+                    new ArrayList<>());
         }
     }
 }

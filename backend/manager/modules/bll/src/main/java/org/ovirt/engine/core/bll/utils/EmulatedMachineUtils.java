@@ -5,13 +5,11 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import org.apache.commons.lang.StringUtils;
-import org.ovirt.engine.core.common.businessentities.BiosType;
 import org.ovirt.engine.core.common.businessentities.ChipsetType;
 import org.ovirt.engine.core.common.businessentities.Cluster;
-import org.ovirt.engine.core.common.businessentities.VmBase;
+import org.ovirt.engine.core.common.businessentities.VM;
 import org.ovirt.engine.core.common.config.Config;
 import org.ovirt.engine.core.common.config.ConfigValues;
-import org.ovirt.engine.core.common.utils.BiosTypeUtils;
 import org.ovirt.engine.core.common.utils.ClusterEmulatedMachines;
 import org.ovirt.engine.core.common.utils.CompatibilityVersionUtils;
 import org.ovirt.engine.core.common.utils.EmulatedMachineCommonUtils;
@@ -25,32 +23,31 @@ public class EmulatedMachineUtils {
     /**
      * Get effective emulated machine type.
      *
-     * @param vmBase - VM entity to check for
+     * @param vm - VM entity to check for
      * @param clusterSupplier - Supplier of non-null Cluster
      * @return The effective emulated machine type.
      */
-    public static String getEffective(VmBase vmBase, Supplier<Cluster> clusterSupplier) {
-        if (vmBase.getCustomEmulatedMachine() != null) {
-            return vmBase.getCustomEmulatedMachine();
+    public static String getEffective(VM vm, Supplier<Cluster> clusterSupplier) {
+        if (vm.getCustomEmulatedMachine() != null) {
+            return vm.getCustomEmulatedMachine();
         }
 
         // The 'default' to be set
         Cluster cluster = clusterSupplier.get();
-        BiosType biosType = BiosTypeUtils.getEffective(vmBase, cluster);
         String recentClusterDefault =
-                ClusterEmulatedMachines.forChipset(cluster.getEmulatedMachine(), biosType.getChipsetType());
-        if (vmBase.getCustomCompatibilityVersion() == null) {
+                ClusterEmulatedMachines.forChipset(cluster.getEmulatedMachine(), vm.getBiosType().getChipsetType());
+        if (vm.getCustomCompatibilityVersion() == null) {
             return recentClusterDefault;
         }
 
         String bestMatch = findBestMatchForEmulatedMachine(
-                biosType.getChipsetType(),
+                vm.getBiosType().getChipsetType(),
                 recentClusterDefault,
                 Config.getValue(
                         ConfigValues.ClusterEmulatedMachines,
-                        CompatibilityVersionUtils.getEffective(vmBase, cluster).getValue()));
+                        CompatibilityVersionUtils.getEffective(vm.getStaticData(), cluster).getValue()));
         log.info("Emulated machine '{}' which is different than that of the cluster is set for '{}'({})",
-                bestMatch, vmBase.getName(), vmBase.getId());
+                bestMatch, vm.getName(), vm.getId());
         return bestMatch;
     }
 

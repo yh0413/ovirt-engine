@@ -168,7 +168,8 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
     @CopyOnNewVersion
     @EditableVmField(onStatuses = VMStatus.Down)
     @EditableVmTemplateField
-    private BiosType customBiosType;
+    // can be null only for Blank template and instance types
+    private BiosType biosType;
 
     @CopyOnNewVersion
     @EditableVmField(onStatuses = VMStatus.Down)
@@ -191,11 +192,6 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
     @IntegerContainedInConfigValueList(configValue = ConfigValues.ValidNumOfMonitors,
             message = "VALIDATION_VM_NUM_OF_MONITORS_EXCEEDED")
     private int numOfMonitors;
-
-    @CopyOnNewVersion
-    @EditableVmField(onStatuses = VMStatus.Down)
-    @EditableVmTemplateField
-    private boolean singleQxlPci;
 
     @CopyOnNewVersion
     @EditableVmField(onStatuses = VMStatus.Down)
@@ -335,9 +331,6 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
     @Min(value = 0, message = "VALIDATION_VM_MIGRATION_DOWNTIME_RANGE")
     private Integer migrationDowntime;
 
-    @EditableVmField
-    private NumaTuneMode numaTuneMode;
-
     @EditableVmField(onStatuses = VMStatus.Down)
     private List<VmNumaNode> vNumaNodeList;
 
@@ -386,6 +379,16 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
     @EditableVmTemplateField
     private boolean multiQueuesEnabled;
 
+    @CopyOnNewVersion
+    @EditableVmField(onStatuses = VMStatus.Down)
+    @EditableVmTemplateField
+    private boolean virtioScsiMultiQueuesEnabled;
+
+    @CopyOnNewVersion
+    @EditableVmField(onStatuses = VMStatus.Down)
+    @EditableVmTemplateField
+    private boolean balloonEnabled;
+
     public VmBase() {
         name = "";
         interfaces = new ArrayList<>();
@@ -406,18 +409,17 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
         vmType = VmType.Server;
         defaultDisplayType = DisplayType.qxl;
         ssoMethod = SsoMethod.GUEST_AGENT;
-        singleQxlPci = true;
         spiceFileTransferEnabled = true;
         spiceCopyPasteEnabled = true;
-        setNumaTuneMode(NumaTuneMode.INTERLEAVE);
         vNumaNodeList = new ArrayList<>();
         customProperties = "";
         consoleDisconnectAction = ConsoleDisconnectAction.LOCK_SCREEN;
         resumeBehavior = VmResumeBehavior.AUTO_RESUME;
-        customBiosType = BiosType.CLUSTER_DEFAULT;
         description = "";
         comment = "";
         multiQueuesEnabled = true;
+        virtioScsiMultiQueuesEnabled = false;
+        balloonEnabled = true;
     }
 
     @EditableVmField
@@ -545,6 +547,12 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
     @EditableVmTemplateField
     private boolean useTscFrequency;
 
+    @CopyOnNewVersion
+    @EditableVmField(onStatuses = VMStatus.Down)
+    @Size(max = BusinessEntitiesDefinitions.GENERAL_MAX_SIZE)
+    @EditableVmTemplateField
+    private String cpuPinning;
+
     public VmBase(VmBase vmBase) {
         this(vmBase.getName(),
                 vmBase.getId(),
@@ -559,7 +567,6 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
                 vmBase.getCpuPerSocket(),
                 vmBase.getThreadsPerCpu(),
                 vmBase.getNumOfMonitors(),
-                vmBase.getSingleQxlPci(),
                 vmBase.getTimeZone(),
                 vmBase.getVmType(),
                 vmBase.getUsbPolicy(),
@@ -595,7 +602,6 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
                 vmBase.isSpiceFileTransferEnabled(),
                 vmBase.isSpiceCopyPasteEnabled(),
                 vmBase.getCpuProfileId(),
-                vmBase.getNumaTuneMode(),
                 vmBase.getAutoConverge(),
                 vmBase.getMigrateCompressed(),
                 vmBase.getMigrateEncrypted(),
@@ -603,7 +609,6 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
                 vmBase.getPredefinedProperties(),
                 vmBase.getCustomProperties(),
                 vmBase.getCustomEmulatedMachine(),
-                vmBase.getCustomBiosType(),
                 vmBase.getCustomCpuName(),
                 vmBase.isUseHostCpuFlags(),
                 vmBase.getSmallIconId(),
@@ -615,7 +620,11 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
                 vmBase.getLeaseStorageDomainId(),
                 vmBase.getResumeBehavior(),
                 vmBase.isMultiQueuesEnabled(),
-                vmBase.getUseTscFrequency());
+                vmBase.getUseTscFrequency(),
+                vmBase.getCpuPinning(),
+                vmBase.isVirtioScsiMultiQueuesEnabled(),
+                vmBase.isBalloonEnabled(),
+                vmBase.getBiosType());
     }
 
     public VmBase(
@@ -632,7 +641,6 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
             int cpusPerSocket,
             int threadsPerCpu,
             int numOfMonitors,
-            boolean singleQxlPci,
             String timezone,
             VmType vmType,
             UsbPolicy usbPolicy,
@@ -668,7 +676,6 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
             boolean spiceFileTransferEnabled,
             boolean spiceCopyPasteEnabled,
             Guid cpuProfileId,
-            NumaTuneMode numaTuneMode,
             Boolean autoConverge,
             Boolean migrateCompressed,
             Boolean migrateEncrypted,
@@ -676,7 +683,6 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
             String predefinedProperties,
             String customProperties,
             String customEmulatedMachine,
-            BiosType customBiosType,
             String customCpuName,
             boolean useHostCpuFlags,
             Guid smallIconId,
@@ -688,7 +694,11 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
             Guid leaseStorageDomainId,
             VmResumeBehavior resumeBehavior,
             boolean multiQueuesEnabled,
-            boolean useTscFrequency) {
+            boolean useTscFrequency,
+            String cpuPinning,
+            boolean virtioScsiMultiQueuesEnabled,
+            boolean balloonEnabled,
+            BiosType biosType) {
         this();
         this.name = name;
         this.id = id;
@@ -703,7 +713,6 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
         this.cpuPerSocket = cpusPerSocket;
         this.threadsPerCpu = threadsPerCpu;
         this.numOfMonitors = numOfMonitors;
-        this.singleQxlPci = singleQxlPci;
         this.timeZone = timezone;
         this.vmType = vmType;
         this.usbPolicy = usbPolicy;
@@ -732,12 +741,11 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
         this.allowConsoleReconnect = allowConsoleReconnect;
         this.dedicatedVmForVdsList = dedicatedVmForVdsList;
         this.migrationDowntime = migrationDowntime;
-        this.vmInit = vmInit;
+        this.vmInit = vmInit != null ? new VmInit(vmInit) : null;
         this.serialNumberPolicy = serialNumberPolicy;
         this.customSerialNumber = customSerialNumber;
         this.bootMenuEnabled = bootMenuEnabled;
         this.spiceFileTransferEnabled = spiceFileTransferEnabled;
-        this.numaTuneMode = numaTuneMode;
         this.spiceCopyPasteEnabled = spiceCopyPasteEnabled;
         this.cpuProfileId = cpuProfileId;
         this.autoConverge = autoConverge;
@@ -747,7 +755,6 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
         this.predefinedProperties = predefinedProperties;
         this.customProperties = customProperties;
         this.customEmulatedMachine = customEmulatedMachine;
-        this.customBiosType = customBiosType;
         this.customCpuName = customCpuName;
         this.useHostCpuFlags = useHostCpuFlags;
         this.smallIconId = smallIconId;
@@ -759,7 +766,11 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
         this.leaseStorageDomainId = leaseStorageDomainId;
         this.resumeBehavior = resumeBehavior;
         this.multiQueuesEnabled = multiQueuesEnabled;
+        this.virtioScsiMultiQueuesEnabled = virtioScsiMultiQueuesEnabled;
         this.useTscFrequency = useTscFrequency;
+        this.cpuPinning = cpuPinning;
+        this.balloonEnabled = balloonEnabled;
+        this.biosType = biosType;
     }
 
     @Override
@@ -947,14 +958,6 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
         numOfMonitors = value;
     }
 
-    public boolean getSingleQxlPci() {
-        return singleQxlPci;
-    }
-
-    public void setSingleQxlPci(boolean value) {
-        singleQxlPci = value;
-    }
-
     public String getTimeZone() {
         return timeZone;
     }
@@ -1111,8 +1114,32 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
         return multiQueuesEnabled;
     }
 
+    public boolean isVirtioScsiMultiQueuesEnabled() {
+        return virtioScsiMultiQueuesEnabled;
+    }
+
     public void setMultiQueuesEnabled(boolean multiQueuesEnabled) {
         this.multiQueuesEnabled = multiQueuesEnabled;
+    }
+
+    public String getCpuPinning() {
+        return cpuPinning;
+    }
+
+    public void setCpuPinning(String cpuPinning) {
+        this.cpuPinning = cpuPinning;
+    }
+
+    public void setVirtioScsiMultiQueuesEnabled(boolean virtioScsiMultiQueuesEnabled) {
+        this.virtioScsiMultiQueuesEnabled = virtioScsiMultiQueuesEnabled;
+    }
+
+    public boolean isBalloonEnabled() {
+        return balloonEnabled;
+    }
+
+    public void setBalloonEnabled(boolean balloonEnabled) {
+        this.balloonEnabled = balloonEnabled;
     }
 
     @Override
@@ -1159,7 +1186,6 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
                 spiceFileTransferEnabled,
                 spiceCopyPasteEnabled,
                 cpuProfileId,
-                numaTuneMode,
                 vNumaNodeList,
                 autoConverge,
                 migrateCompressed,
@@ -1167,7 +1193,6 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
                 predefinedProperties,
                 userDefinedProperties,
                 customEmulatedMachine,
-                customBiosType,
                 customCpuName,
                 useHostCpuFlags,
                 smallIconId,
@@ -1176,7 +1201,10 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
                 customCompatibilityVersion,
                 resumeBehavior,
                 multiQueuesEnabled,
-                useTscFrequency
+                useTscFrequency,
+                cpuPinning,
+                virtioScsiMultiQueuesEnabled,
+                balloonEnabled
         );
     }
 
@@ -1206,7 +1234,6 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
                 && numOfSockets == other.numOfSockets
                 && threadsPerCpu == other.threadsPerCpu
                 && numOfMonitors == other.numOfMonitors
-                && singleQxlPci == other.singleQxlPci
                 && origin == other.origin
                 && priority == other.priority
                 && stateless == other.stateless
@@ -1231,7 +1258,6 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
                 && spiceFileTransferEnabled == other.spiceFileTransferEnabled
                 && spiceCopyPasteEnabled == other.spiceCopyPasteEnabled
                 && Objects.equals(cpuProfileId, other.cpuProfileId)
-                && Objects.equals(numaTuneMode.getValue(), other.numaTuneMode.getValue())
                 && Objects.equals(vNumaNodeList, other.vNumaNodeList)
                 && Objects.equals(autoConverge, other.autoConverge)
                 && Objects.equals(migrateCompressed, other.migrateCompressed)
@@ -1239,7 +1265,6 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
                 && Objects.equals(predefinedProperties, other.predefinedProperties)
                 && Objects.equals(userDefinedProperties, other.userDefinedProperties)
                 && Objects.equals(customEmulatedMachine, other.customEmulatedMachine)
-                && customBiosType == other.customBiosType
                 && Objects.equals(customCpuName, other.customCpuName)
                 && Objects.equals(useHostCpuFlags, other.useHostCpuFlags)
                 && Objects.equals(smallIconId, other.smallIconId)
@@ -1248,7 +1273,10 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
                 && Objects.equals(resumeBehavior, other.resumeBehavior)
                 && Objects.equals(customCompatibilityVersion, other.customCompatibilityVersion)
                 && Objects.equals(multiQueuesEnabled, other.multiQueuesEnabled)
-                && Objects.equals(useTscFrequency, other.useTscFrequency);
+                && Objects.equals(useTscFrequency, other.useTscFrequency)
+                && Objects.equals(cpuPinning, other.cpuPinning)
+                && Objects.equals(virtioScsiMultiQueuesEnabled, other.virtioScsiMultiQueuesEnabled)
+                && Objects.equals(balloonEnabled, other.balloonEnabled);
     }
 
     public Guid getQuotaId() {
@@ -1301,11 +1329,6 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
     @JsonIgnore
     public void setDedicatedVmForVdsList(List<Guid> value) {
         dedicatedVmForVdsList = value;
-    }
-
-    public void setDedicatedVmForVdsList(Guid value) {
-        dedicatedVmForVdsList = new LinkedList<>();
-        dedicatedVmForVdsList.add(value);
     }
 
     public DisplayType getDefaultDisplayType() {
@@ -1461,14 +1484,6 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
         this.cpuProfileId = cpuProfileId;
     }
 
-    public NumaTuneMode getNumaTuneMode() {
-        return numaTuneMode;
-    }
-
-    public void setNumaTuneMode(NumaTuneMode numaTuneMode) {
-        this.numaTuneMode = numaTuneMode;
-    }
-
     public List<VmNumaNode> getvNumaNodeList() {
         return vNumaNodeList;
     }
@@ -1539,12 +1554,12 @@ public class VmBase implements Queryable, BusinessEntity<Guid>, Nameable, Commen
         this.customEmulatedMachine = customEmulatedMachine == null || customEmulatedMachine.trim().isEmpty() ? null : customEmulatedMachine;
     }
 
-    public BiosType getCustomBiosType() {
-        return customBiosType;
+    public BiosType getBiosType() {
+        return biosType;
     }
 
-    public void setCustomBiosType(BiosType customBiosType) {
-        this.customBiosType = customBiosType;
+    public void setBiosType(BiosType biosType) {
+        this.biosType = biosType;
     }
 
     public String getCustomCpuName() {

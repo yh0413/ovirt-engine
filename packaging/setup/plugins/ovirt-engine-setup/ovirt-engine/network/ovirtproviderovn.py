@@ -22,7 +22,9 @@ import uuid
 
 from collections import namedtuple
 
-from M2Crypto import RSA
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import padding
 
 from otopi import constants as otopicons
 from otopi import filetransaction
@@ -378,13 +380,18 @@ class Plugin(plugin.PluginBase):
                 ),
                 logStreams=False,
             )
-            return RSA.load_key_string(
-                '\n'.join(stdout).encode()
-                )
+            return serialization.load_pem_private_key(
+                '\n'.join(stdout).encode(),
+                password=None,
+                backend=default_backend(),
+            )
 
-        encrypted_password = _getRSA().public_encrypt(
-            data=password.encode(),
-            padding=RSA.pkcs1_padding,
+        encrypted_password = _getRSA().public_key().encrypt(
+            password.encode(),
+            # TODO replace PKCS1v15 with PSS if/when we know we do not
+            # need m2crypto compatibility. Would likely require changes
+            # also in the engine and in the ovn provider.
+            padding=padding.PKCS1v15(),
         )
         return base64.b64encode(encrypted_password)
 
@@ -564,17 +571,22 @@ class Plugin(plugin.PluginBase):
             )
         )
 
-    def _sanitize_ovn_key_file_permissions(self, file_path, enable_logging):
+    def _set_file_permissions(
+            self,
+            file_path,
+            enable_logging,
+            desired_permissions
+    ):
         current_permissions = stat.S_IMODE(
             os.lstat(
                 file_path
             ).st_mode
         )
-        desired_permissions = stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP
         if desired_permissions != current_permissions:
             if enable_logging:
                 self.logger.info(_(
-                    'Setting permissions on {file} to enable OVN to read it.'
+                    'Setting permissions on {file} '
+                    'to enable OVN and engine to read it.'
                 ).format(
                     file=file_path
                 ))
@@ -586,6 +598,13 @@ class Plugin(plugin.PluginBase):
                 desired_permissions
             )
 
+    def _sanitize_ovn_key_file_permissions(self, file_path, enable_logging):
+        desired_permissions = stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP
+        self._set_file_permissions(
+            file_path,
+            enable_logging,
+            desired_permissions
+        )
         desired_gid = grp.getgrnam('hugetlbfs').gr_gid
         current_gid = os.stat(file_path).st_gid
         if desired_gid != current_gid:
@@ -766,8 +785,12 @@ class Plugin(plugin.PluginBase):
         truststore_password = config.get(
             'ENGINE_EXTERNAL_PROVIDERS_TRUST_STORE_PASSWORD'
         )
+
+        # We need to disable FIPS configuration of OpenJDK to be able to work
+        # with file system keystores and interoperability with openssl
         command = (
             'keytool',
+            '-J-Dcom.redhat.fips=false',
             '-import',
             '-alias',
             OvnEnv.PROVIDER_NAME,
@@ -802,6 +825,11 @@ class Plugin(plugin.PluginBase):
             env={
                 'pass': truststore_password,
             },
+        )
+        self._set_file_permissions(
+            truststore,
+            True,
+            stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH,
         )
 
     def _is_provider_installed(self):

@@ -1,6 +1,7 @@
 package org.ovirt.engine.core.common.utils;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Objects;
 
 public class Pair<T, K> implements Serializable {
@@ -46,9 +47,8 @@ public class Pair<T, K> implements Serializable {
     @Override
     public int hashCode() {
         return Objects.hash(
-                first,
-                second
-        );
+                hash(first),
+                hash(second));
     }
 
     @Override
@@ -77,6 +77,13 @@ public class Pair<T, K> implements Serializable {
             return obj2.getClass().isArray() && Objects.deepEquals(obj1, obj2);
         }
         return Objects.equals(obj1, obj2);
+    }
+
+    private int hash(Object obj) {
+        if (obj != null && obj.getClass().isArray()) {
+            return Arrays.hashCode((Object[]) obj);
+        }
+        return Objects.hashCode(obj);
     }
 
 }

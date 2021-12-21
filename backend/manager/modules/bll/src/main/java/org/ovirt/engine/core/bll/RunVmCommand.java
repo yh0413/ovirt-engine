@@ -756,6 +756,7 @@ public class RunVmCommand<T extends RunVmParams> extends RunVmCommandBase<T>
             return;
         }
 
+        getVmManager().resetExternalDataStatus();
         fetchVmDisksFromDb();
         updateVmDevicesOnRun();
         updateGraphicsAndDisplayInfos();
@@ -809,7 +810,7 @@ public class RunVmCommand<T extends RunVmParams> extends RunVmCommandBase<T>
     }
 
     protected String getEffectiveEmulatedMachine() {
-        return EmulatedMachineUtils.getEffective(getVm().getStaticData(), this::getCluster);
+        return EmulatedMachineUtils.getEffective(getVm(), this::getCluster);
     }
 
     private void updateUsbController() {
@@ -1110,7 +1111,7 @@ public class RunVmCommand<T extends RunVmParams> extends RunVmCommandBase<T>
             return failValidation(EngineMessage.VMPAYLOAD_CDROM_OR_CLOUD_INIT_MAXIMUM_DEVICES);
         }
 
-        if (!validate(vmHandler.isCpuSupported(
+        if (getVm().getCustomCpuName() == null && !validate(vmHandler.isCpuSupported(
                 getVm().getVmOsId(),
                 getVm().getCompatibilityVersion(),
                 getCluster().getCpuName()))) {
@@ -1131,10 +1132,13 @@ public class RunVmCommand<T extends RunVmParams> extends RunVmCommandBase<T>
         }
 
         if (FeatureSupported.isBiosTypeSupported(getCluster().getCompatibilityVersion())
-                && getVm().getCustomBiosType() != BiosType.CLUSTER_DEFAULT
-                && getVm().getCustomBiosType() != BiosType.I440FX_SEA_BIOS
+                && getVm().getBiosType() != BiosType.I440FX_SEA_BIOS
                 && getCluster().getArchitecture().getFamily() != ArchitectureType.x86) {
             return failValidation(EngineMessage.NON_DEFAULT_BIOS_TYPE_FOR_X86_ONLY);
+        }
+
+        if (isVmDuringBackup()) {
+            return failValidation(EngineMessage.ACTION_TYPE_FAILED_VM_IS_DURING_BACKUP);
         }
 
         return true;

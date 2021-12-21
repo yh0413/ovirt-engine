@@ -155,9 +155,7 @@ public abstract class InstanceTypeManager {
         deactivateAndStartProgress();
         VmBase vmBase = getSource();
 
-        maybeSetSingleQxlPci(vmBase);
         updateWatchdog(vmBase, false);
-        updateBalloon(vmBase, false);
         maybeSetEntity(model.getIsUsbEnabled(), vmBase.getUsbPolicy() != UsbPolicy.DISABLED);
 
         activate();
@@ -268,12 +266,12 @@ public abstract class InstanceTypeManager {
         maybeSetSelectedItem(model.getCoresPerSocket(), vmBase.getCpuPerSocket());
         maybeSetSelectedItem(model.getThreadsPerCore(), vmBase.getThreadsPerCpu());
 
-        maybeSetSelectedItem(model.getBiosType(), vmBase.getCustomBiosType());
         maybeSetSelectedItem(model.getEmulatedMachine(), vmBase.getCustomEmulatedMachine());
         maybeSetSelectedItem(model.getCustomCpu(), vmBase.getCustomCpuName());
 
         model.setSelectedMigrationDowntime(vmBase.getMigrationDowntime());
         model.selectMigrationPolicy(vmBase.getMigrationPolicyId());
+        maybeSetEntity(model.getMemoryBalloonEnabled(), vmBase.isBalloonEnabled());
         priorityUtil.initPriority(vmBase.getPriority(), new PriorityUtil.PriorityUpdatingCallbacks() {
             @Override
             public void beforeUpdates() {
@@ -305,7 +303,18 @@ public abstract class InstanceTypeManager {
                         List<String> consoleDevices = r.getReturnValue();
                         getModel().getIsConsoleDeviceEnabled().setEntity(!consoleDevices.isEmpty());
                         activate();
-                        postDoUpdateManagedFieldsFrom(vmBase);
+
+                        Frontend.getInstance().runQuery(QueryType.GetTpmDevices, new IdQueryParameters(vmBase.getId()),
+                                new AsyncQuery<QueryReturnValue>(rr -> {
+                                    deactivate();
+                                    List<String> tpmDevices = rr.getReturnValue();
+                                    boolean tpmEnabled = !tpmDevices.isEmpty();
+                                    getModel().getTpmEnabled().setEntity(tpmEnabled);
+                                    getModel().setTpmOriginallyEnabled(tpmEnabled);
+                                    activate();
+
+                                    postDoUpdateManagedFieldsFrom(vmBase);
+                                }));
                     }));
         }), vmBase.getId());
     }
@@ -315,6 +324,8 @@ public abstract class InstanceTypeManager {
             deactivate();
             getModel().getIsSoundcardEnabled().setEntity(
                     VmDeviceCommonUtils.isVmDeviceExists(vmBase.getManagedDeviceMap(), VmDeviceGeneralType.SOUND));
+            getModel().getTpmEnabled().setEntity(
+                    VmDeviceCommonUtils.isVmDeviceExists(vmBase.getManagedDeviceMap(), VmDeviceType.TPM));
             getModel().getIsConsoleDeviceEnabled().setEntity(
                     VmDeviceCommonUtils.isVmDeviceExists(vmBase.getManagedDeviceMap(), VmDeviceType.CONSOLE));
 
@@ -371,26 +382,8 @@ public abstract class InstanceTypeManager {
         activate();
 
         if (continueWithNext) {
-            updateBalloon(vmBase, true);
-        }
-    }
-
-    protected void updateBalloon(final VmBase vmBase, final boolean continueWithNext) {
-        if (model.getMemoryBalloonDeviceEnabled().getIsChangable() && model.getMemoryBalloonDeviceEnabled().getIsAvailable()) {
-            Frontend.getInstance().runQuery(QueryType.IsBalloonEnabled, new IdQueryParameters(vmBase.getId()),
-                    new AsyncQuery<QueryReturnValue>(returnValue -> {
-                        deactivate();
-                        getModel().getMemoryBalloonDeviceEnabled().setEntity((Boolean) returnValue.getReturnValue());
-                        activate();
-                        if (continueWithNext) {
-                            updateRngDevice(vmBase);
-                        }
-                    }
-            ));
-        } else if (continueWithNext) {
             updateRngDevice(vmBase);
         }
-
     }
 
     protected void updateRngDevice(final VmBase vmBase) {
@@ -497,20 +490,9 @@ public abstract class InstanceTypeManager {
                     maybeSetSelectedItem(model.getNumOfMonitors(), vmBase.getNumOfMonitors());
                     maybeSetEntity(model.getIsUsbEnabled(), vmBase.getUsbPolicy() != UsbPolicy.DISABLED);
                     maybeSetEntity(model.getIsSmartcardEnabled(), vmBase.isSmartcardEnabled());
-                    maybeSetSingleQxlPci(vmBase);
 
                     activate();
                 }));
-    }
-
-    protected void maybeSetSingleQxlPci(VmBase vmBase) {
-        maybeSetSingleQxlPciValue(vmBase.getSingleQxlPci());
-    }
-
-    protected void maybeSetSingleQxlPciValue(boolean value) {
-        if (alwaysEnabledFieldUpdate) {
-            model.setSingleQxlEnabled(value);
-        }
     }
 
 

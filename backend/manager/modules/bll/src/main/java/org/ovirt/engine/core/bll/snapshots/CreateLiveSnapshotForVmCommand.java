@@ -54,7 +54,6 @@ public class CreateLiveSnapshotForVmCommand<T extends CreateSnapshotForVmParamet
 
     @Override
     protected void executeCommand() {
-        boolean liveSnapshotRunning = false;
         if (getParameters().isLegacyFlow()) {
             performLiveSnapshotDeprecated();
             thawVm();
@@ -67,25 +66,16 @@ public class CreateLiveSnapshotForVmCommand<T extends CreateSnapshotForVmParamet
                     getParameters().setHostJobId(jobId);
                     persistCommand(getParameters().getParentCommand(), true);
                     log.debug("Live snapshot started successfully");
-                    liveSnapshotRunning = true;
+                    setSucceeded(true);
                 } else {
                     log.error("Failed to start live snapshot on VDS");
+                    setCommandStatus(CommandStatus.FAILED);
+                    setSucceeded(false);
                 }
             } catch (EngineException e) {
                 log.error("Engine exception thrown while sending live snapshot command", e);
-                if (e.getErrorCode() == EngineError.imageErr || e.getErrorCode() == EngineError.SNAPSHOT_FAILED) {
-                    // In this case, we are not certain whether merge is currently running or
-                    // whether one of the relevant volumes already removed from the chain. In these cases,
-                    // we want to verify the current state; therefore, we consider the merge to be running.
-                    liveSnapshotRunning = true;
-                }
-            } finally {
-                if (liveSnapshotRunning) {
-                    setSucceeded(true);
-                } else {
-                    setCommandStatus(CommandStatus.FAILED);
-                    handleVdsLiveSnapshotFailure(new EngineException(EngineError.SNAPSHOT_FAILED));
-                }
+                setCommandStatus(CommandStatus.FAILED);
+                handleVdsLiveSnapshotFailure(e);
             }
         }
     }
@@ -94,6 +84,7 @@ public class CreateLiveSnapshotForVmCommand<T extends CreateSnapshotForVmParamet
         List<Disk> pluggedDisksForVm = diskDao.getAllForVm(getVm().getId(), true);
         List<DiskImage> filteredPluggedDisksForVm = DisksFilter.filterImageDisks(pluggedDisksForVm,
                 ONLY_SNAPABLE, ONLY_ACTIVE);
+        boolean memoryDump = getParameters().isMemorySnapshotSupported() && snapshot.containsMemory();
 
         // 'filteredPluggedDisks' should contain only disks from 'getDisksList()' that are plugged to the VM.
         List<DiskImage> filteredPluggedDisks = ImagesHandler.imagesIntersection(filteredPluggedDisksForVm, getParameters().getCachedSelectedActiveDisks());
@@ -101,7 +92,7 @@ public class CreateLiveSnapshotForVmCommand<T extends CreateSnapshotForVmParamet
         SnapshotVDSCommandParameters parameters = new SnapshotVDSCommandParameters(
                 getVm().getRunOnVds(), getVm().getId(), filteredPluggedDisks);
 
-        if (getParameters().isMemorySnapshotSupported() && snapshot.containsMemory()) {
+        if (memoryDump) {
             parameters.setMemoryDump((DiskImage) diskDao.get(snapshot.getMemoryDiskId()));
             parameters.setMemoryConf((DiskImage) diskDao.get(snapshot.getMetadataDiskId()));
         }
@@ -113,7 +104,11 @@ public class CreateLiveSnapshotForVmCommand<T extends CreateSnapshotForVmParamet
 
         if (!getParameters().isLegacyFlow()) {
             // Get the Live Snapshot timeout
-            parameters.setLiveSnapshotTimeout(Config.getValue(ConfigValues.LiveSnapshotTimeoutInMinutes));
+            if (memoryDump) {
+                parameters.setLiveSnapshotTimeout(Config.getValue(ConfigValues.LiveSnapshotTimeoutInMinutes));
+            } else {
+                parameters.setLiveSnapshotTimeout(Config.getValue(ConfigValues.LiveSnapshotFreezeTimeout));
+            }
         }
 
         return parameters;
@@ -175,8 +170,10 @@ public class CreateLiveSnapshotForVmCommand<T extends CreateSnapshotForVmParamet
     private void handleVmFailure(EngineException e, AuditLogType auditLogType, String warnMessage) {
         log.warn(warnMessage, e.getMessage());
         log.debug("Exception", e);
-        addCustomValue("SnapshotName", getSnapshotName());
+        addCustomValue("SnapshotName", getParameters().getSnapshot().getDescription());
         addCustomValue("VmName", getVmName());
+        String translatedError = backend.getVdsErrorsTranslator().translateErrorTextSingle(e.getVdsError().getCode().toString());
+        addCustomValue("DueToError", translatedError.isEmpty() ? "" : " due to: " + translatedError);
         updateCallStackFromThrowable(e);
         auditLogDirector.log(this, auditLogType);
     }

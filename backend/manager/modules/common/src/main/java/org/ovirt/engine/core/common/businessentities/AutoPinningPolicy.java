@@ -9,10 +9,11 @@ import java.util.stream.Stream;
  * Policy for assigning automatic CPU and NUMA pinning
  */
 public enum AutoPinningPolicy {
+    NONE(0),
     /** Use the current topology of the VM. Sets the CPU pinning and NUMA accordingly */
-    EXISTING(0),
+    PIN(1),
     /** Switch the VM topology to be maximized on the selected host. Sets the CPU pinning and NUMA accordingly */
-    ADJUST(1);
+    RESIZE_AND_PIN(2);
 
     private int value;
 

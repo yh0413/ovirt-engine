@@ -68,6 +68,8 @@ import org.ovirt.engine.core.common.action.UpdateVmVersionParameters;
 import org.ovirt.engine.core.common.asynctasks.EntityInfo;
 import org.ovirt.engine.core.common.businessentities.ActionGroup;
 import org.ovirt.engine.core.common.businessentities.ArchitectureType;
+import org.ovirt.engine.core.common.businessentities.BiosType;
+import org.ovirt.engine.core.common.businessentities.ChipsetType;
 import org.ovirt.engine.core.common.businessentities.GraphicsDevice;
 import org.ovirt.engine.core.common.businessentities.GraphicsType;
 import org.ovirt.engine.core.common.businessentities.Permission;
@@ -216,6 +218,9 @@ public class AddVmTemplateCommand<T extends AddVmTemplateParameters> extends VmT
                 getParameters().setSoundDeviceEnabled(false);
             }
 
+            if (getParameters().isTpmEnabled() == null) {
+                getParameters().setTpmEnabled(false);
+            }
             if (getParameters().isConsoleEnabled() == null) {
                 getParameters().setConsoleEnabled(false);
             }
@@ -233,21 +238,33 @@ public class AddVmTemplateCommand<T extends AddVmTemplateParameters> extends VmT
                     getParameters().getGraphicsDevices(),
                     getMasterVmCompatibilityVersion());
 
-            vmHandler.autoSelectResumeBehavior(masterVm, getCluster());
+            vmHandler.autoSelectResumeBehavior(masterVm);
 
             separateCustomProperties(masterVm);
         }
         if (getVm() != null) {
+            // template from vm
             updateVmDevices();
             images.addAll(getVmDisksFromDB());
             setStoragePoolId(getVm().getStoragePoolId());
             isVmInDb = true;
+            masterVm.setBiosType(getVm().getBiosType());
         } else if (getCluster() != null && masterVm != null) {
+            // template from image
             VM vm = new VM(masterVm, new VmDynamic(), null);
             vm.setClusterCompatibilityVersion(getCluster().getCompatibilityVersion());
             vm.setClusterBiosType(getCluster().getBiosType());
             setVm(vm);
+
             setStoragePoolId(getCluster().getStoragePoolId());
+            if (getCluster().getBiosType() != null && getCluster().getBiosType().getChipsetType() == ChipsetType.Q35) {
+                masterVm.setBiosType(BiosType.Q35_SEA_BIOS);
+            } else {
+                masterVm.setBiosType(BiosType.I440FX_SEA_BIOS);
+            }
+        } else {
+            // instance types
+            masterVm.setBiosType(null);
         }
         updateDiskInfoDestinationMap();
         generateTargetDiskIds();
@@ -370,21 +387,22 @@ public class AddVmTemplateCommand<T extends AddVmTemplateParameters> extends VmT
                         getVmTemplateId(),
                         srcDeviceIdToTargetDeviceIdMapping,
                         getParameters().isSoundDeviceEnabled(),
+                        getParameters().isTpmEnabled(),
                         getParameters().isConsoleEnabled(),
                         getParameters().isVirtioScsiEnabled(),
-                        getVmDeviceUtils().hasMemoryBalloon(getVmId()),
                         graphicsToSkip,
                         false,
                         getEffectiveCompatibilityVersion());
+                getVmDeviceUtils().copyVmExternalData(getVmId(), getVmTemplateId());
             } else {
                 // for instance type and new template without a VM
                 getVmDeviceUtils().copyVmDevices(VmTemplateHandler.BLANK_VM_TEMPLATE_ID,
                         getVmTemplateId(),
                         srcDeviceIdToTargetDeviceIdMapping,
                         getParameters().isSoundDeviceEnabled(),
+                        getParameters().isTpmEnabled(),
                         getParameters().isConsoleEnabled(),
                         getParameters().isVirtioScsiEnabled(),
-                        Boolean.TRUE.equals(getParameters().isBalloonEnabled()),
                         graphicsToSkip,
                         false,
                         getEffectiveCompatibilityVersion());
@@ -659,6 +677,10 @@ public class AddVmTemplateCommand<T extends AddVmTemplateParameters> extends VmT
             return failValidation(EngineMessage.VM_TEMPLATE_CANNOT_SEAL_WINDOWS);
         }
 
+        if (getParameters().getMasterVm().getClusterId() != null && getParameters().getMasterVm().getBiosType() == null) {
+            return failValidation(EngineMessage.VM_TEMPLATE_WITH_CLUSTER_WITHOUT_BIOS_TYPE);
+        }
+
         if (isInstanceType) {
             return true;
         }
@@ -667,7 +689,8 @@ public class AddVmTemplateCommand<T extends AddVmTemplateParameters> extends VmT
                 && validateImages()
                 && validate(VmValidator.validateCpuSockets(
                         getParameters().getMasterVm(),
-                        getVm().getCompatibilityVersion()));
+                        getVm().getCompatibilityVersion(),
+                        getCluster().getArchitecture()));
     }
 
     protected boolean isVmStatusValid(VMStatus status) {
@@ -732,13 +755,8 @@ public class AddVmTemplateCommand<T extends AddVmTemplateParameters> extends VmT
                 vmHandler.getResultingVmGraphics(getVmDeviceUtils().getGraphicsTypesOfEntity(srcId),
                         getParameters().getGraphicsDevices()),
                 getParameters().getMasterVm().getDefaultDisplayType(),
+                getVm().getBiosType(),
                 getVm().getCompatibilityVersion()))) {
-            return false;
-        }
-
-        if (getParameters().getVm().getSingleQxlPci() &&
-                !validate(vmHandler.isSingleQxlDeviceLegal(
-                        getParameters().getVm().getDefaultDisplayType(), getParameters().getVm().getOs()))) {
             return false;
         }
 
@@ -915,7 +933,6 @@ public class AddVmTemplateCommand<T extends AddVmTemplateParameters> extends VmT
                         getParameters().getMasterVm().getClusterId(),
                         getVmTemplateId(),
                         getParameters().getMasterVm().getNumOfMonitors(),
-                        getParameters().getMasterVm().getSingleQxlPci(),
                         VmTemplateStatus.Locked.getValue(),
                         getParameters().getMasterVm().getUsbPolicy().getValue(),
                         getParameters().getMasterVm().getTimeZone(),
@@ -953,7 +970,6 @@ public class AddVmTemplateCommand<T extends AddVmTemplateParameters> extends VmT
                         getParameters().getMasterVm().isSpiceFileTransferEnabled(),
                         getParameters().getMasterVm().isSpiceCopyPasteEnabled(),
                         getParameters().getMasterVm().getCpuProfileId(),
-                        getParameters().getMasterVm().getNumaTuneMode(),
                         getParameters().getMasterVm().getAutoConverge(),
                         getParameters().getMasterVm().getMigrateCompressed(),
                         getParameters().getMasterVm().getMigrateEncrypted(),
@@ -961,7 +977,6 @@ public class AddVmTemplateCommand<T extends AddVmTemplateParameters> extends VmT
                         getParameters().getMasterVm().getPredefinedProperties(),
                         getParameters().getMasterVm().getCustomProperties(),
                         getParameters().getMasterVm().getCustomEmulatedMachine(),
-                        getParameters().getMasterVm().getCustomBiosType(),
                         getParameters().getMasterVm().getCustomCpuName(),
                         getParameters().getMasterVm().isUseHostCpuFlags(),
                         getParameters().getMasterVm().getSmallIconId(),
@@ -973,7 +988,11 @@ public class AddVmTemplateCommand<T extends AddVmTemplateParameters> extends VmT
                         getParameters().getMasterVm().getLeaseStorageDomainId(),
                         getParameters().getMasterVm().getResumeBehavior(),
                         getParameters().getMasterVm().isMultiQueuesEnabled(),
-                        getParameters().getMasterVm().getUseTscFrequency()));
+                        getParameters().getMasterVm().getUseTscFrequency(),
+                        getParameters().getMasterVm().getCpuPinning(),
+                        getParameters().getMasterVm().isVirtioScsiMultiQueuesEnabled(),
+                        getParameters().getMasterVm().isBalloonEnabled(),
+                        getParameters().getMasterVm().getBiosType()));
         getVmTemplate().setOrigin(getParameters().getMasterVm().getOrigin());
         updateVmIcons();
         getVmTemplate().setSealed(getParameters().isSealTemplate());

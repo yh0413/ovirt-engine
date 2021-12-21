@@ -41,8 +41,10 @@ import org.ovirt.engine.core.dao.DbUserDao;
 import org.ovirt.engine.core.dao.SnapshotDao;
 import org.ovirt.engine.core.dao.VmDeviceDao;
 import org.ovirt.engine.core.dao.VmPoolDao;
+import org.ovirt.engine.core.dao.network.VmNicDao;
 import org.ovirt.engine.core.utils.lock.EngineLock;
 import org.ovirt.engine.core.utils.lock.LockManager;
+import org.ovirt.engine.core.vdsbroker.ResourceManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,6 +62,8 @@ public class ProcessDownVmCommand<T extends ProcessDownVmParameters> extends Com
     @Inject
     private NetworkDeviceHelper networkDeviceHelper;
     @Inject
+    private ResourceManager resourceManager;
+    @Inject
     private SnapshotsManager snapshotsManager;
     @Inject
     private LockManager lockManager;
@@ -76,6 +80,8 @@ public class ProcessDownVmCommand<T extends ProcessDownVmParameters> extends Com
     private ManagedBlockStorageCommandUtil managedBlockStorageCommandUtil;
     @Inject
     private VmHandler vmHandler;
+    @Inject
+    private VmNicDao vmNicDao;
 
     protected ProcessDownVmCommand(Guid commandId) {
         super(commandId);
@@ -132,6 +138,7 @@ public class ProcessDownVmCommand<T extends ProcessDownVmParameters> extends Com
 
         if (!removingVmPool) {
             removeStatelessVmUnmanagedDevices();
+            resourceManager.getVmManager(getVmId()).rebootCleanup();
 
             boolean vmHasDirectPassthroughDevices = releaseUsedHostDevices();
 
@@ -142,6 +149,7 @@ public class ProcessDownVmCommand<T extends ProcessDownVmParameters> extends Com
         }
 
         managedBlockStorageCommandUtil.disconnectManagedBlockStorageDisks(getVm(), vmHandler);
+        vmNicDao.setVmInterfacesSyncedForVm(getVmId());
     }
 
     private boolean releaseUsedHostDevices() {
@@ -265,8 +273,8 @@ public class ProcessDownVmCommand<T extends ProcessDownVmParameters> extends Com
 
         VmManagementParametersBase updateVmParams = new VmManagementParametersBase(getVm());
         updateVmParams.setUpdateWatchdog(true);
+        updateVmParams.setTpmEnabled(false);
         updateVmParams.setSoundDeviceEnabled(false);
-        updateVmParams.setBalloonEnabled(false);
         updateVmParams.setVirtioScsiEnabled(false);
         updateVmParams.setClearPayload(true);
         updateVmParams.setUpdateRngDevice(true);
@@ -282,9 +290,6 @@ public class ProcessDownVmCommand<T extends ProcessDownVmParameters> extends Com
                     break;
                 case SOUND:
                     updateVmParams.setSoundDeviceEnabled(true);
-                    break;
-                case BALLOON:
-                    updateVmParams.setBalloonEnabled(true);
                     break;
                 case CONTROLLER:
                     if (VmDeviceType.VIRTIOSCSI.getName().equals(device.getDevice())) {
@@ -305,6 +310,9 @@ public class ProcessDownVmCommand<T extends ProcessDownVmParameters> extends Com
                 case GRAPHICS:
                     updateVmParams.getGraphicsDevices().put(GraphicsType.fromString(device.getDevice()),
                             new GraphicsDevice(device));
+                    break;
+                case TPM:
+                    updateVmParams.setTpmEnabled(true);
                     break;
                 default:
             }

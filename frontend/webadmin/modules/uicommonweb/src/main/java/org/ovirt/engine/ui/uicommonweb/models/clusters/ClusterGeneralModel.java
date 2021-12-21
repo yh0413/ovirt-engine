@@ -27,6 +27,7 @@ import org.ovirt.engine.core.common.queries.IdQueryParameters;
 import org.ovirt.engine.core.common.queries.QueryReturnValue;
 import org.ovirt.engine.core.common.queries.QueryType;
 import org.ovirt.engine.core.common.utils.ClusterEmulatedMachines;
+import org.ovirt.engine.core.common.utils.Pair;
 import org.ovirt.engine.core.compat.Guid;
 import org.ovirt.engine.ui.frontend.Frontend;
 import org.ovirt.engine.ui.uicommonweb.UICommand;
@@ -40,6 +41,8 @@ import org.ovirt.engine.ui.uicompat.ConstantsManager;
 import org.ovirt.engine.ui.uicompat.PropertyChangedEventArgs;
 
 public class ClusterGeneralModel extends EntityModel<Cluster> {
+
+    public static final String CPU_VERB_PROPERTY_CHANGE = "cpuVerb";//$NON-NLS-1$
 
     public static final String CONFIGURED_CPU_VERB_PROPERTY_CHANGE = "configuredCpuVerb";//$NON-NLS-1$
 
@@ -159,6 +162,7 @@ public class ClusterGeneralModel extends EntityModel<Cluster> {
     private ArchitectureType architecture;
     private String cpuType;
     private String cpuVerb;
+    private String configuredCpuVerb;
     private String dataCenterName;
     private String compatibilityVersion;
     private int memoryOverCommit;
@@ -179,6 +183,10 @@ public class ClusterGeneralModel extends EntityModel<Cluster> {
 
     public Boolean isConsoleAddressPartiallyOverridden() {
         return consoleAddressPartiallyOverridden == null ? Boolean.FALSE : consoleAddressPartiallyOverridden;
+    }
+
+    public boolean isCpuConfigurationOutdated() {
+        return !Objects.equals(cpuVerb, configuredCpuVerb);
     }
 
     public ClusterGeneralModel() {
@@ -219,7 +227,8 @@ public class ClusterGeneralModel extends EntityModel<Cluster> {
         setArchitecture(cluster.getArchitecture());
         setClusterId(cluster.getId().toString());
         setCpuType(cluster.getCpuName());
-        setCpuVerb(cluster.getConfiguredCpuVerb());
+        setCpuVerb(cluster.getCpuVerb());
+        setConfiguredCpuVerb(cluster.getConfiguredCpuVerb());
         setDataCenterName(cluster.getStoragePoolName());
         setMemoryOverCommit(cluster.getMaxVdsMemoryOverCommit());
         setCpuThreads(cluster.getCountThreadsAsCores());
@@ -417,8 +426,10 @@ public class ClusterGeneralModel extends EntityModel<Cluster> {
                 hostsModel.setMessage(ConstantsManager.getInstance().getConstants().emptyNewGlusterHosts());
             } else {
                 ArrayList<EntityModel<HostDetailModel>> list = new ArrayList<>();
-                for (Map.Entry<String, String> host : hostMap.entrySet()) {
-                    HostDetailModel hostModel = new HostDetailModel(host.getKey(), host.getValue());
+                for (Map.Entry<String, Pair<String, String>> host : hostMap.entrySet()) {
+                    String sshPublicKey = host.getValue().getSecond();
+
+                    HostDetailModel hostModel = new HostDetailModel(host.getKey(), sshPublicKey);
                     hostModel.setName(host.getKey());
                     hostModel.setPassword("");//$NON-NLS-1$
                     EntityModel<HostDetailModel> entityModel = new EntityModel<>(hostModel);
@@ -448,7 +459,7 @@ public class ClusterGeneralModel extends EntityModel<Cluster> {
             VDS host = new VDS();
             host.setVdsName(hostDetailModel.getName());
             host.setHostName(hostDetailModel.getAddress());
-            host.setSshKeyFingerprint(hostDetailModel.getFingerprint());
+            host.setSshPublicKey(hostDetailModel.getSshPublicKey());
             host.setPort(54321);
             host.setSshPort(22); // TODO: get from UI, till than using defaults.
             host.setSshUsername("root"); //$NON-NLS-1$
@@ -643,13 +654,24 @@ public class ClusterGeneralModel extends EntityModel<Cluster> {
         this.cpuType = cpuType;
     }
 
+    public void setCpuVerb(String cpuVerb) {
+        if (!Objects.equals(this.cpuVerb, cpuVerb)) {
+            this.cpuVerb = cpuVerb;
+            onPropertyChanged(CPU_VERB_PROPERTY_CHANGE);
+        }
+    }
+
     public String getCpuVerb() {
         return cpuVerb;
     }
 
-    public void setCpuVerb(String cpuVerb) {
-        if (!Objects.equals(this.cpuVerb, cpuVerb)) {
-            this.cpuVerb = cpuVerb;
+    public String getConfiguredCpuVerb() {
+        return configuredCpuVerb;
+    }
+
+    public void setConfiguredCpuVerb(String cpuVerb) {
+        if (!Objects.equals(this.configuredCpuVerb, cpuVerb)) {
+            this.configuredCpuVerb = cpuVerb;
             onPropertyChanged(CONFIGURED_CPU_VERB_PROPERTY_CHANGE);
         }
     }

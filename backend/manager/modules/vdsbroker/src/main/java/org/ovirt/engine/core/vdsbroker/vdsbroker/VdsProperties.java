@@ -184,7 +184,6 @@ public final class VdsProperties {
     public static final String Controller = "controller";
     public static final String spapr_vio = "spapr-vio";
 
-    public static final String mem_available = "memAvailable";
     public static final String memFree = "memFree";
     public static final String mem_shared = "memShared";
     public static final String mem_usage = "memUsed";
@@ -224,6 +223,7 @@ public final class VdsProperties {
     public static final String size = "size";
     public static final String lun_guid = "lunGUID";
     public static final String compat_version = "qcow2_compat";
+    public static final String drive_spec = "drive_spec";
 
     // Iso/Floppy related properties
     public static final String iso_list = "isolist";
@@ -262,6 +262,7 @@ public final class VdsProperties {
     public static final String vm_guest_mem_buffered = "mem_buffers";
     public static final String vm_guest_mem_cached = "mem_cached";
     public static final String vm_guest_mem_free = "mem_free";
+    public static final String vm_guest_mem_unused = "mem_unused";
     public static final String vm_guest_mem_stats = "memoryStats";
     public static final String vm_usage_mem_percent = "memUsage";
     public static final String vm_migration_progress_percent = "migrationProgress";
@@ -330,6 +331,10 @@ public final class VdsProperties {
     public static final String memoryDumpVolumeInfo = "memoryDumpVolumeInfo";
     public static final String memoryMetadataVolumeInfo = "memoryMetadataVolumeInfo";
     public static final String engineXml = "xml";
+    public static final String nvramData = "_X_nvramdata";
+    public static final String nvramHash = "nvramHash";
+    public static final String tpmData = "_X_tpmdata";
+    public static final String tpmHash = "tpmHash";
     public static final String pauseCode = "pauseCode";
     public static final String KeyboardMap = "keyMap";
     public static final String TabletEnable = "tabletEnable";
@@ -478,6 +483,7 @@ public final class VdsProperties {
     public static final String MDEV = "mdev";
     public static final String MDEV_AVAILABLE_INSTANCES = "available_instances";
     public static final String MDEV_DESCRIPTION = "description";
+    public static final String MDEV_NAME = "name";
     public static final String PRODUCT_NAME = "product";
     public static final String PRODUCT_ID = "product_id";
     public static final String VENDOR_NAME = "vendor";
@@ -556,9 +562,12 @@ public final class VdsProperties {
 
     // incremental backup
     public static final String BACKUP_ENABLED = "backupEnabled";
+    public static final String COLD_BACKUP_ENABLED = "coldBackupEnabled";
+    public static final String CLEAR_BITMAPS_ENABLED = "clearBitmapsEnabled";
     public static final String CHECKPOINT = "checkpoint";
     public static final String CHECKPOINT_IDS = "checkpoint_ids";
     public static final String BACKUP_MODE = "backup_mode";
+    public static final String SCRATCH_DISK = "scratch_disk";
 
     public static final String TSC_FREQUENCY = "tscFrequency";
 
@@ -567,4 +576,6 @@ public final class VdsProperties {
     public static final String TSC_SCALING = "tscScaling";
 
     public static final String BOOT_UUID = "boot_uuid";
+
+    public static final String CD_CHANGE_PDIV = "cd_change_pdiv";
 }

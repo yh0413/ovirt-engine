@@ -63,7 +63,7 @@ public class OvfManager {
             Cluster cluster = clusterDao.get(vm.getClusterId());
             String cpuVerb = cluster.getCpuVerb();
             String emulatedMachine = ClusterEmulatedMachines.forChipset(
-                    cluster.getEmulatedMachine(), vm.getEffectiveBiosType().getChipsetType());
+                    cluster.getEmulatedMachine(), vm.getBiosType().getChipsetType());
             vmWriter = new HostedEngineOvfWriter(vm,
                     fullEntityOvfData,
                     version,
@@ -121,6 +121,7 @@ public class OvfManager {
         try {
             ovf = new OvfOvaVmReader(new XmlDocument(ovfstring), fullEntityOvfData, vm, getOsRepository());
             ovf.build();
+            initIcons(vm.getStaticData());
         } catch (Exception ex) {
             String message = generateOvfReaderErrorMessage(ovf, ex);
             logOvfLoadError(message, ovfstring);

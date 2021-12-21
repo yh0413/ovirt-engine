@@ -105,7 +105,7 @@ public class CloneVmNoCollapseCommand<T extends CloneVmParameters> extends Clone
 
     @Override
     protected void copyDisks() {
-        Collection<DiskImage> vmDisks = super.getAdjustedDiskImagesFromConfiguration();
+        Collection<DiskImage> vmDisks = super.getSourceDisks();
 
         for (DiskImage diskImage : vmDisks) {
             MoveOrCopyImageGroupParameters copyParams = createCopyParams(diskImage);
@@ -146,6 +146,7 @@ public class CloneVmNoCollapseCommand<T extends CloneVmParameters> extends Clone
 
     private void addSnapshotToDB(Map<Guid, DiskImage> oldToNewImageMap, Snapshot snapshot) {
         VM oldVm = snapshotVmConfigurationHelper.getVmFromConfiguration(snapshot);
+        oldVm.setClusterArch(getVm().getClusterArch());
 
         List<DiskImage> newDiskImages = oldVm.getDiskList()
                 .stream()

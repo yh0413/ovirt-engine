@@ -37,6 +37,7 @@ import org.ovirt.engine.core.common.action.CreateSnapshotForVmParameters;
 import org.ovirt.engine.core.common.action.LockProperties;
 import org.ovirt.engine.core.common.action.LockProperties.Scope;
 import org.ovirt.engine.core.common.action.RemoveSnapshotParameters;
+import org.ovirt.engine.core.common.action.VmInterfacesModifyParameters;
 import org.ovirt.engine.core.common.action.VmManagementParametersBase;
 import org.ovirt.engine.core.common.businessentities.Snapshot;
 import org.ovirt.engine.core.common.businessentities.StorageDomain;
@@ -127,20 +128,21 @@ public class CloneVmCommand<T extends CloneVmParameters> extends AddVmAndCloneIm
             // the VM id has to be the new VM id - same as the getVm is always the new VM
             setVmId(getParameters().getNewVmGuid());
         }
-        getParameters().setUseCinderCommandCallback(!getAdjustedDiskImagesFromConfiguration().isEmpty());
+        getParameters().setUseCinderCommandCallback(!getSourceDisks().isEmpty());
     }
 
     @Override
     protected void executeVmCommand() {
         getParameters().setStage(CloneVmParameters.CloneVmStage.CREATE_VM_SNAPSHOT);
-        setSnapshotId(createVmSnapshot());
-        setSucceeded(true);
+        Guid snapshotId = createVmSnapshot();
+        setSnapshotId(snapshotId);
+        setSucceeded(snapshotId != null);
     }
 
     private void setSnapshotId(Guid snapshotId) {
         getParameters().setSourceSnapshotId(snapshotId);
         diskImagesFromConfiguration = null;
-        diskInfoDestinationMap.clear();
+        diskInfoDestinationMap = new HashMap<>();
         fillDisksToParameters();
         storageToDisksMap =
                 ImagesHandler.buildStorageToDiskMap(getImagesToCheckDestinationStorageDomains(),
@@ -173,6 +175,13 @@ public class CloneVmCommand<T extends CloneVmParameters> extends AddVmAndCloneIm
                 break;
 
             case REMOVE_VM_SNAPSHOT:
+                if (getParameters().getVnicsWithProfiles() == null) {
+                    return false;
+                }
+                getParameters().setStage(CloneVmParameters.CloneVmStage.MODIFY_VM_INTERFACES);
+                break;
+
+            case MODIFY_VM_INTERFACES:
                 return false;
 
             default:
@@ -201,6 +210,10 @@ public class CloneVmCommand<T extends CloneVmParameters> extends AddVmAndCloneIm
                 removeVmSnapshot();
                 break;
 
+            case MODIFY_VM_INTERFACES:
+                modifyVmInterfaces();
+                break;
+
             default:
         }
     }
@@ -212,7 +225,11 @@ public class CloneVmCommand<T extends CloneVmParameters> extends AddVmAndCloneIm
                 buildCreateSnapshotParameters(),
                 ExecutionHandler.createDefaultContextForTasks(getContext()));
 
-        if (!returnValue.getSucceeded()) {
+        if (!returnValue.isValid()) {
+            getReturnValue().getValidationMessages().addAll(returnValue.getValidationMessages());
+            getReturnValue().setValid(false);
+            return null;
+        } else if (!returnValue.getSucceeded()) {
             log.error("Failed to create VM snapshot");
             throw new EngineException(returnValue.getFault().getError(), returnValue.getFault().getMessage());
         }
@@ -223,7 +240,7 @@ public class CloneVmCommand<T extends CloneVmParameters> extends AddVmAndCloneIm
     private CreateSnapshotForVmParameters buildCreateSnapshotParameters() {
         CreateSnapshotForVmParameters parameters = new CreateSnapshotForVmParameters(
                 getSourceVmId(),
-                StorageConstants.LCV_AUTO_GENERATED_SNAPSHOT_DESCRIPTION,
+                StorageConstants.CLONE_VM_AUTO_GENERATED_SNAPSHOT_DESCRIPTION,
                 false);
         parameters.setShouldBeLogged(false);
         parameters.setParentCommand(getActionType());
@@ -270,6 +287,9 @@ public class CloneVmCommand<T extends CloneVmParameters> extends AddVmAndCloneIm
         if (!returnValue.getSucceeded()) {
             log.error("Failed to remove VM snapshot");
         }
+
+        // If the command fails beyond this point, endWithFailure() do not need to delete the snapshot anymore
+        setSnapshotId(null);
     }
 
     private RemoveSnapshotParameters createRemoveSnapshotParameters() {
@@ -279,6 +299,26 @@ public class CloneVmCommand<T extends CloneVmParameters> extends AddVmAndCloneIm
         parameters.setEntityInfo(getParameters().getEntityInfo());
         parameters.setNeedsLocking(false);
         parameters.setShouldBeLogged(false);
+        return parameters;
+    }
+
+    private void modifyVmInterfaces() {
+        ActionReturnValue returnValue = runInternalAction(
+                ActionType.VmInterfacesModify,
+                buildVmInterfacesModifyParameters());
+
+        if (!returnValue.getSucceeded()) {
+            log.error("Failed to modify VM interfaces");
+        }
+    }
+
+    private VmInterfacesModifyParameters buildVmInterfacesModifyParameters() {
+        VmInterfacesModifyParameters parameters = new VmInterfacesModifyParameters();
+        parameters.setVmId(getVmId());
+        parameters.setVnicsWithProfiles(getParameters().getVnicsWithProfiles());
+        parameters.setOsId(getVm().getVmOsId());
+        parameters.setCompatibilityVersion(getVm().getClusterCompatibilityVersion());
+        parameters.setAddingNewVm(true);
         return parameters;
     }
 
@@ -320,9 +360,13 @@ public class CloneVmCommand<T extends CloneVmParameters> extends AddVmAndCloneIm
     }
 
     @Override
-    protected Map<String, Pair<String, String>> getSharedLocks() {
+    protected Map<String, Pair<String, String>> getExclusiveLocks() {
         Map<String, Pair<String, String>> locks = new HashMap<>();
 
+        var parentLocks = super.getExclusiveLocks();
+        if (parentLocks != null) {
+            locks.putAll(parentLocks);
+        }
         for (DiskImage image: getImagesToCheckDestinationStorageDomains()) {
             locks.put(image.getId().toString(),
                     LockMessagesMatchUtil.makeLockingPair(LockingGroup.DISK, getDiskSharedLockMessage()));
@@ -381,7 +425,7 @@ public class CloneVmCommand<T extends CloneVmParameters> extends AddVmAndCloneIm
     }
 
     @Override
-    protected Collection<DiskImage> getAdjustedDiskImagesFromConfiguration() {
+    protected Collection<DiskImage> getSourceDisks() {
         if (diskImagesFromConfiguration == null) {
             Collection<? extends Disk> loadedImages =
                     getParameters().getSourceSnapshotId() != null ? getSnapshotDisks() : getVmDisks();
@@ -392,6 +436,36 @@ public class CloneVmCommand<T extends CloneVmParameters> extends AddVmAndCloneIm
             diskImagesFromConfiguration.addAll(DisksFilter.filterManagedBlockStorageDisks(loadedImages, ONLY_PLUGGED));
         }
         return diskImagesFromConfiguration;
+    }
+
+    private Collection<DiskImage> getTargetDisks() {
+        Collection<DiskImage> diskImages = getSourceDisks();
+        if (!getParameters().isEdited()) {
+            return diskImages;
+        }
+
+        List<DiskImage> destDiskImages = new ArrayList<>();
+        for (DiskImage diskImage : diskImages) {
+            DiskImage paramDiskImage = getParameters().getDiskInfoDestinationMap().get(diskImage.getId());
+            if (paramDiskImage == null) {
+                continue;
+            }
+            DiskImage destDiskImage = DiskImage.copyOf(diskImage);
+            destDiskImage.setStorageIds(paramDiskImage.getStorageIds());
+            destDiskImage.setDiskAlias(paramDiskImage.getDiskAlias());
+            destDiskImage.setDiskProfileId(paramDiskImage.getDiskProfileId());
+            if (paramDiskImage.getQuotaId() != null) {
+                destDiskImage.setQuotaId(paramDiskImage.getQuotaId());
+            }
+            if (paramDiskImage.getVolumeType() != null) {
+                destDiskImage.setVolumeType(paramDiskImage.getVolumeType());
+            }
+            if (paramDiskImage.getVolumeFormat() != null) {
+                destDiskImage.setVolumeFormat(paramDiskImage.getVolumeFormat());
+            }
+            destDiskImages.add(destDiskImage);
+        }
+        return destDiskImages;
     }
 
     @Override
@@ -459,8 +533,8 @@ public class CloneVmCommand<T extends CloneVmParameters> extends AddVmAndCloneIm
     }
 
     private void fillDisksToParameters() {
-        for (Disk image : getAdjustedDiskImagesFromConfiguration()) {
-                diskInfoDestinationMap.put(image.getId(), (DiskImage) image);
+        for (Disk image : getTargetDisks()) {
+            diskInfoDestinationMap.put(image.getId(), (DiskImage) image);
         }
 
         getParameters().setDiskInfoDestinationMap(diskInfoDestinationMap);

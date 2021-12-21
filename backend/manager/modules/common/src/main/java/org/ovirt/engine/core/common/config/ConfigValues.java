@@ -191,7 +191,7 @@ public enum ConfigValues {
     @OptionBehaviourAttribute(behaviour = OptionBehaviour.CommaSeparatedStringArray)
     ValidNumOfMonitors(ClientAccessLevel.User),
     @Reloadable
-    @TypeConverterAttribute(Integer.class)
+    @TypeConverterAttribute(Map.class)
     MaxNumOfVmCpus(ClientAccessLevel.User),
     @Reloadable
     @TypeConverterAttribute(Integer.class)
@@ -1001,6 +1001,12 @@ public enum ConfigValues {
     @TypeConverterAttribute(String.class)
     ClientModeVncDefault(ClientAccessLevel.User),
 
+    @TypeConverterAttribute(String.class)
+    ClientModeVncDefaultNonManagedVm(ClientAccessLevel.User),
+
+    @TypeConverterAttribute(String.class)
+    ClientModeConsoleDefault(ClientAccessLevel.User),
+
     @Reloadable
     @TypeConverterAttribute(Double.class)
     DelayResetForSpmInSeconds,
@@ -1381,6 +1387,21 @@ public enum ConfigValues {
     @TypeConverterAttribute(Integer.class)
     BackupAlertPeriodInDays,
 
+    @TypeConverterAttribute(Integer.class)
+    DbEntitiesCleanupRateInMinutes,
+
+    @TypeConverterAttribute(Integer.class)
+    SucceededBackupCleanupTimeInMinutes,
+
+    @TypeConverterAttribute(Integer.class)
+    FailedBackupCleanupTimeInMinutes,
+
+    @TypeConverterAttribute(Integer.class)
+    SucceededImageTransferCleanupTimeInMinutes,
+
+    @TypeConverterAttribute(Integer.class)
+    FailedImageTransferCleanupTimeInMinutes,
+
     @TypeConverterAttribute(List.class)
     @OptionBehaviourAttribute(behaviour = OptionBehaviour.CommaSeparatedStringArray)
     HostDevicePassthroughCapabilities(ClientAccessLevel.Admin),
@@ -1414,10 +1435,6 @@ public enum ConfigValues {
 
     @TypeConverterAttribute(Integer.class)
     MaxMemorySlots,
-
-    /** User can only hot plug multiples of this value. */
-    @TypeConverterAttribute(Integer.class)
-    HotPlugMemoryBlockSizeMb,
 
     @TypeConverterAttribute(String.class)
     HostedEngineVmName,
@@ -1508,6 +1525,9 @@ public enum ConfigValues {
     @TypeConverterAttribute(Boolean.class)
     VgpuPlacementSupported,
 
+    @TypeConverterAttribute(Boolean.class)
+    VgpuFramebufferSupported,
+
     @TypeConverterAttribute(Integer.class)
     GlusterVolumeFreeSpaceThresholdInPercent,
 
@@ -1523,9 +1543,6 @@ public enum ConfigValues {
     @TypeConverterAttribute(Integer.class)
     SetupNetworksWaitTimeoutSeconds,
 
-    @TypeConverterAttribute(Boolean.class)
-    KubevirtProviderSupportEnabled,
-
     @TypeConverterAttribute(String.class)
     SkuToAVLevel,
 
@@ -1538,8 +1555,12 @@ public enum ConfigValues {
     @TypeConverterAttribute(Boolean.class)
     LiveSnapshotAllowInconsistent,
 
+    @Deprecated
     @TypeConverterAttribute(Boolean.class)
     LiveSnapshotPerformFreezeInEngine,
+
+    @TypeConverterAttribute(Integer.class)
+    LiveSnapshotFreezeTimeout,
 
     @TypeConverterAttribute(Boolean.class)
     IsIncrementalBackupSupported,
@@ -1556,6 +1577,15 @@ public enum ConfigValues {
 
     @TypeConverterAttribute(String.class)
     InstanceId,
+
+    @TypeConverterAttribute(Map.class)
+    TpmDeviceSupported,
+
+    @TypeConverterAttribute(Boolean.class)
+    NvramPersistenceSupported,
+
+    @TypeConverterAttribute(Boolean.class)
+    EnableBochsDisplay,
 
     Invalid;
 

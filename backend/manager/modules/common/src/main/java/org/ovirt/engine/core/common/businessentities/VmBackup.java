@@ -15,6 +15,8 @@ public class VmBackup implements Queryable, BusinessEntity<Guid> {
 
     private Guid vmId;
 
+    private Guid hostId;
+
     private Guid fromCheckpointId;
 
     private Guid toCheckpointId;
@@ -23,7 +25,13 @@ public class VmBackup implements Queryable, BusinessEntity<Guid> {
 
     private Date creationDate;
 
+    private Date modificationDate;
+
+    private String description;
+
     private List<DiskImage> disks;
+
+    private boolean liveBackup;
 
     public Guid getId() {
         return id;
@@ -39,6 +47,14 @@ public class VmBackup implements Queryable, BusinessEntity<Guid> {
 
     public void setVmId(Guid vmId) {
         this.vmId = vmId;
+    }
+
+    public Guid getHostId() {
+        return hostId;
+    }
+
+    public void setHostId(Guid hostId) {
+        this.hostId = hostId;
     }
 
     public Guid getFromCheckpointId() {
@@ -81,8 +97,32 @@ public class VmBackup implements Queryable, BusinessEntity<Guid> {
         this.creationDate = creationDate;
     }
 
+    public Date getModificationDate() {
+        return modificationDate;
+    }
+
+    public void setModificationDate(Date modificationDate) {
+        this.modificationDate = modificationDate;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
     public boolean isIncremental() {
         return fromCheckpointId != null;
+    }
+
+    public boolean isLiveBackup() {
+        return liveBackup;
+    }
+
+    public void setLiveBackup(boolean liveBackup) {
+        this.liveBackup = liveBackup;
     }
 
     @Override
@@ -90,11 +130,15 @@ public class VmBackup implements Queryable, BusinessEntity<Guid> {
         return Objects.hash(
                 id,
                 vmId,
+                hostId,
                 fromCheckpointId,
                 toCheckpointId,
                 phase,
                 disks,
-                creationDate
+                creationDate,
+                modificationDate,
+                description,
+                liveBackup
         );
     }
 
@@ -109,11 +153,15 @@ public class VmBackup implements Queryable, BusinessEntity<Guid> {
         VmBackup other = (VmBackup) obj;
         return Objects.equals(id, other.id)
                 && Objects.equals(vmId, other.vmId)
+                && Objects.equals(hostId, other.hostId)
                 && Objects.equals(fromCheckpointId, other.fromCheckpointId)
                 && Objects.equals(toCheckpointId, other.toCheckpointId)
                 && Objects.equals(phase, other.phase)
                 && Objects.equals(disks, other.disks)
-                && Objects.equals(creationDate, other.creationDate);
+                && Objects.equals(creationDate, other.creationDate)
+                && Objects.equals(modificationDate, other.modificationDate)
+                && Objects.equals(description, other.description)
+                && Objects.equals(liveBackup, other.liveBackup);
     }
 
     @Override

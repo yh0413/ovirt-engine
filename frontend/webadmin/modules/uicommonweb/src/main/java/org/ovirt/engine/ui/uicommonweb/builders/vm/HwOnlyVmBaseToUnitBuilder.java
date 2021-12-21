@@ -1,5 +1,6 @@
 package org.ovirt.engine.ui.uicommonweb.builders.vm;
 
+import org.ovirt.engine.core.common.businessentities.BiosType;
 import org.ovirt.engine.core.common.businessentities.UsbPolicy;
 import org.ovirt.engine.core.common.businessentities.VmBase;
 import org.ovirt.engine.ui.uicommonweb.builders.BaseSyncBuilder;
@@ -15,7 +16,6 @@ public class HwOnlyVmBaseToUnitBuilder extends BaseSyncBuilder<VmBase, UnitVmMod
         model.getMinAllocatedMemory().setEntity(vm.getMinAllocatedMem());
         model.getIsUsbEnabled().setEntity(vm.getUsbPolicy() != UsbPolicy.DISABLED);
         model.getNumOfMonitors().setSelectedItem(vm.getNumOfMonitors());
-        model.setSingleQxlEnabled(vm.getSingleQxlPci());
         model.setBootSequence(vm.getDefaultBootSequence());
         model.getTotalCPUCores().setEntity(Integer.toString(vm.getNumOfCpus()));
         model.getNumOfSockets().setSelectedItem(vm.getNumOfSockets());
@@ -26,8 +26,11 @@ public class HwOnlyVmBaseToUnitBuilder extends BaseSyncBuilder<VmBase, UnitVmMod
         model.selectMigrationPolicy(vm.getMigrationPolicyId());
         model.getEmulatedMachine().setSelectedItem(vm.getCustomEmulatedMachine());
         model.getCustomCpu().setSelectedItem(vm.getCustomCpuName());
-        model.getBiosType().setSelectedItem(vm.getCustomBiosType());
+        model.setSecureBootOriginallyEnabled(vm.getBiosType() == BiosType.Q35_SECURE_BOOT);
+        model.getBiosType().setSelectedItem(vm.getBiosType());
         model.getHostCpu().setEntity(vm.isUseHostCpuFlags());
         model.getTscFrequency().setEntity(vm.getUseTscFrequency());
+        model.getVirtioScsiMultiQueuesEnabled().setEntity(vm.isVirtioScsiMultiQueuesEnabled());
+        model.getMemoryBalloonEnabled().setEntity(vm.isBalloonEnabled());
     }
 }

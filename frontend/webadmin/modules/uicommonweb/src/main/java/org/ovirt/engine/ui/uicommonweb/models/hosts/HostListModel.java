@@ -26,6 +26,7 @@ import org.ovirt.engine.core.common.action.ForceSelectSPMParameters;
 import org.ovirt.engine.core.common.action.MaintenanceNumberOfVdssParameters;
 import org.ovirt.engine.core.common.action.RemoveVdsParameters;
 import org.ovirt.engine.core.common.action.SetHaMaintenanceParameters;
+import org.ovirt.engine.core.common.action.SshHostRebootParameters;
 import org.ovirt.engine.core.common.action.VdsActionParameters;
 import org.ovirt.engine.core.common.action.VdsPowerDownParameters;
 import org.ovirt.engine.core.common.action.hostdeploy.AddVdsActionParameters;
@@ -33,13 +34,9 @@ import org.ovirt.engine.core.common.action.hostdeploy.ApproveVdsParameters;
 import org.ovirt.engine.core.common.action.hostdeploy.UpdateVdsActionParameters;
 import org.ovirt.engine.core.common.businessentities.BusinessEntitiesDefinitions;
 import org.ovirt.engine.core.common.businessentities.Cluster;
-import org.ovirt.engine.core.common.businessentities.ExternalComputeResource;
-import org.ovirt.engine.core.common.businessentities.ExternalDiscoveredHost;
-import org.ovirt.engine.core.common.businessentities.ExternalHostGroup;
 import org.ovirt.engine.core.common.businessentities.HaMaintenanceMode;
 import org.ovirt.engine.core.common.businessentities.HostedEngineDeployConfiguration;
 import org.ovirt.engine.core.common.businessentities.Permission;
-import org.ovirt.engine.core.common.businessentities.Provider;
 import org.ovirt.engine.core.common.businessentities.ReplaceHostConfiguration;
 import org.ovirt.engine.core.common.businessentities.RoleType;
 import org.ovirt.engine.core.common.businessentities.Tags;
@@ -876,51 +873,11 @@ public class HostListModel<E> extends ListWithSimpleDetailsModel<E, VDS> impleme
 
         VDS host = VDSMapper.INSTANCE.apply(initHost, model);
 
-        host.setComment(model.getComment().getEntity());
-        boolean consoleAddressSet = model.getConsoleAddressEnabled().getEntity();
-        host.setConsoleAddress(!consoleAddressSet ? null : model.getConsoleAddress().getEntity());
-        host.setVgpuPlacement(model.getVgpuPlacement().getValue());
-
-        host.setVdsSpmPriority(model.getSpmPriorityValue());
-        host.setFenceProxySources(FenceProxySourceTypeHelper.parseFromString(model.getPmProxyPreferences()));
-
-
-        host.setCurrentKernelCmdline(model.getKernelCmdline().getEntity());
-        host.setKernelCmdlineBlacklistNouveau(model.getKernelCmdlineBlacklistNouveau().getEntity());
-        host.setKernelCmdlineParsable(model.isKernelCmdlineParsable());
-        host.setKernelCmdlineIommu(model.getKernelCmdlineIommu().getEntity());
-        host.setKernelCmdlineKvmNested(model.getKernelCmdlineKvmNested().getEntity());
-        host.setKernelCmdlineUnsafeInterrupts(model.getKernelCmdlineUnsafeInterrupts().getEntity());
-        host.setKernelCmdlinePciRealloc(model.getKernelCmdlinePciRealloc().getEntity());
-        host.setKernelCmdlineFips(model.getKernelCmdlineFips().getEntity());
-        host.setKernelCmdlineSmtDisabled(model.getKernelCmdlineSmtDisabled().getEntity());
-
         cancelConfirm();
         model.startProgress();
 
         if (model.getIsNew()) {
             AddVdsActionParameters parameters = AddVdsActionParametersMapper.INSTANCE.apply(host, model);
-
-            if (model.getProviders().getSelectedItem() != null) {
-                parameters.getVdsStaticData().setHostProviderId(model.getProviders().getSelectedItem().getId());
-            }
-            if (Boolean.TRUE.equals(model.getIsDiscoveredHosts().getEntity())) {
-                Provider<?> provider = model.getProviders().getSelectedItem();
-                ExternalHostGroup hostGroup = (ExternalHostGroup) model.getExternalHostGroups().getSelectedItem();
-                ExternalComputeResource computeResource = (ExternalComputeResource) model.getExternalComputeResource().getSelectedItem();
-                ExternalDiscoveredHost discoveredHost = (ExternalDiscoveredHost) model.getExternalDiscoveredHosts().getSelectedItem();
-                parameters.initVdsActionParametersForProvision(
-                        provider.getId(),
-                        hostGroup,
-                        computeResource,
-                        discoveredHost.getMac(),
-                        discoveredHost.getName(),
-                        discoveredHost.getIp());
-            }
-
-            parameters.setAffinityGroups(model.getAffinityGroupList().getSelectedItems());
-            parameters.setAffinityLabels(model.getLabelList().getSelectedItems());
-            parameters.setActivateHost(model.getActivateHostAfterInstall().getEntity());
 
             Frontend.getInstance().runAction(ActionType.AddVds, parameters,
                     result -> {
@@ -937,6 +894,7 @@ public class HostListModel<E> extends ListWithSimpleDetailsModel<E, VDS> impleme
             parameters.setVdsId(host.getId());
             parameters.setPassword(""); //$NON-NLS-1$
             parameters.setInstallHost(false);
+            parameters.setRebootHost(model.getRebootHostAfterInstall().getEntity());
             parameters.setAuthMethod(model.getAuthenticationMethod());
             parameters.setFenceAgents(model.getFenceAgentListModel().getFenceAgents());
             parameters.setAffinityGroups(model.getAffinityGroupList().getSelectedItems());
@@ -1002,6 +960,7 @@ public class HostListModel<E> extends ListWithSimpleDetailsModel<E, VDS> impleme
         }
         params.setAuthMethod(model.getAuthenticationMethod());
         params.setActivateHost(model.getActivateHostAfterInstall().getEntity());
+        params.setRebootHost(model.getRebootHostAfterInstall().getEntity());
 
         Frontend.getInstance().runMultipleAction(ActionType.ApproveVds,
                 new ArrayList<>(Arrays.asList(params)),
@@ -1343,6 +1302,7 @@ public class HostListModel<E> extends ListWithSimpleDetailsModel<E, VDS> impleme
         param.setReconfigureGluster(model.getReconfigureGluster().getEntity());
         param.setFqdnBox(model.getFqdnBox().getEntity());
         param.setActivateHost(model.getActivateHostAfterInstall().getEntity());
+        param.setRebootHost(model.getRebootHostAfterInstall().getEntity());
         param.setAuthMethod(model.getAuthenticationMethod());
         param.setFenceAgents(null);  // Explicitly set null, to be clear we don't want to update fence agents.
         param.setHostedEngineDeployConfiguration(
@@ -1461,7 +1421,7 @@ public class HostListModel<E> extends ListWithSimpleDetailsModel<E, VDS> impleme
         ArrayList<ActionParametersBase> list = new ArrayList<>();
         for (Object item : getSelectedItems()) {
             VDS vds = (VDS) item;
-            VdsActionParameters params = new VdsActionParameters(vds.getId());
+            SshHostRebootParameters params = new SshHostRebootParameters(vds.getId());
             params.setPrevVdsStatus(vds.getStatus());
             list.add(params);
         }

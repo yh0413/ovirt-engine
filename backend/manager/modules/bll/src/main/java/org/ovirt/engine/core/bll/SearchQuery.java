@@ -8,6 +8,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -57,6 +58,7 @@ import org.ovirt.engine.core.common.queries.QueryParametersBase;
 import org.ovirt.engine.core.common.queries.QueryType;
 import org.ovirt.engine.core.common.queries.SearchParameters;
 import org.ovirt.engine.core.compat.DateTime;
+import org.ovirt.engine.core.compat.Guid;
 import org.ovirt.engine.core.compat.TimeSpan;
 import org.ovirt.engine.core.compat.Version;
 import org.ovirt.engine.core.dao.AuditLogDao;
@@ -77,6 +79,7 @@ import org.ovirt.engine.core.dao.VmPoolDao;
 import org.ovirt.engine.core.dao.VmTemplateDao;
 import org.ovirt.engine.core.dao.gluster.GlusterVolumeDao;
 import org.ovirt.engine.core.dao.network.NetworkViewDao;
+import org.ovirt.engine.core.dao.network.VmNetworkInterfaceDao;
 import org.ovirt.engine.core.dao.provider.ProviderDao;
 import org.ovirt.engine.core.searchbackend.ISyntaxChecker;
 import org.ovirt.engine.core.searchbackend.SearchObjects;
@@ -166,6 +169,8 @@ public class SearchQuery<P extends SearchParameters> extends QueriesCommandBase<
     private LockManager lockManager;
     @Inject
     private HostLocking hostLocking;
+    @Inject
+    private VmNetworkInterfaceDao vmNetworkInterfaceDao;
 
     public SearchQuery(P parameters, EngineContext engineContext) {
         super(parameters, engineContext);
@@ -254,14 +259,20 @@ public class SearchQuery<P extends SearchParameters> extends QueriesCommandBase<
             return Collections.emptyList();
         }
 
+        var javaZoneIdToOffset = vmHandler.getJavaZoneIdToOffsetFuncSupplier();
         List<VM> vms = vmDao.getAllUsingQuery(data.getQuery());
+        Map<Guid, VM> vmsById = new HashMap<>();
         for (VM vm : vms) {
             vmHandler.updateVmGuestAgentVersion(vm);
             vmHandler.updateVmLock(vm);
             vmHandler.updateOperationProgress(vm);
             vmHandler.updateVmStatistics(vm);
             vmHandler.updateConfiguredCpuVerb(vm);
+            vmHandler.updateIsDifferentTimeZone(vm, javaZoneIdToOffset);
+            vmsById.put(vm.getId(), vm);
         }
+        var vmIdsWithVnicsOutOfSync = vmNetworkInterfaceDao.getAllWithVnicOutOfSync(vmsById.keySet());
+        vmIdsWithVnicsOutOfSync.stream().map(vmsById::get).filter(Objects::nonNull).forEach(vm -> vm.setVnicsOutOfSync(true));
         return vms;
     }
 
@@ -391,9 +402,11 @@ public class SearchQuery<P extends SearchParameters> extends QueriesCommandBase<
                     );
         }
         for(Cluster cluster: clusters) {
-            List<VDS> hostsWithMissingFlags = backend.runInternalQuery(QueryType.GetHostsWithMissingFlagsForCluster,
-                    new IdQueryParameters(cluster.getId())).getReturnValue();
-            cluster.setHasHostWithMissingCpuFlags(!hostsWithMissingFlags.isEmpty());
+            if (cluster.isManaged()) {
+                List<VDS> hostsWithMissingFlags = backend.runInternalQuery(QueryType.GetHostsWithMissingFlagsForCluster,
+                        new IdQueryParameters(cluster.getId())).getReturnValue();
+                cluster.setHasHostWithMissingCpuFlags(!hostsWithMissingFlags.isEmpty());
+            }
 
             String verb = cpuFlagsManagerHandler.getCpuId(cluster.getCpuName(), cluster.getCompatibilityVersion());
             cluster.setConfiguredCpuVerb(verb);

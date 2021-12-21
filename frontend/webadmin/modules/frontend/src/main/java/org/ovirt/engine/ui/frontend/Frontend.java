@@ -15,10 +15,9 @@ import java.util.stream.Collectors;
 import org.ovirt.engine.core.common.action.ActionParametersBase;
 import org.ovirt.engine.core.common.action.ActionReturnValue;
 import org.ovirt.engine.core.common.action.ActionType;
-import org.ovirt.engine.core.common.action.UpdateUserParameters;
+import org.ovirt.engine.core.common.businessentities.UserProfileProperty;
 import org.ovirt.engine.core.common.businessentities.aaa.DbUser;
 import org.ovirt.engine.core.common.errors.EngineFault;
-import org.ovirt.engine.core.common.queries.IdQueryParameters;
 import org.ovirt.engine.core.common.queries.QueryParametersBase;
 import org.ovirt.engine.core.common.queries.QueryReturnValue;
 import org.ovirt.engine.core.common.queries.QueryType;
@@ -58,6 +57,7 @@ import com.google.inject.Inject;
  * instance of this class.
  */
 public class Frontend implements HasHandlers {
+
     /**
      * Provides static access to {@code Frontend} singleton instance.
      */
@@ -123,10 +123,14 @@ public class Frontend implements HasHandlers {
      */
     private DbUser currentUser;
 
+    private final UserProfileManager userProfileManager = new UserProfileManager(this);
+
     /**
-     * Cached user settings of currently logged in user.
+     * Cached settings to be used by the UI.
+     * Contains parsed data from {@linkplain UserProfileManager#getWebAdminUserOption()}.
      */
-    private UserSettings userSettings = UserSettings.defaultSettings();
+    private WebAdminSettings webAdminSettings = WebAdminSettings.defaultSettings();
+
 
     /**
      * Should queries be filtered.
@@ -822,7 +826,6 @@ public class Frontend implements HasHandlers {
      */
     public void initLoggedInUser(DbUser loggedUser) {
         this.currentUser = loggedUser;
-        userSettings = UserSettings.from(currentUser);
     }
 
     /**
@@ -840,7 +843,6 @@ public class Frontend implements HasHandlers {
      */
     public void setLoggedInUser(final DbUser loggedInUser) {
         this.currentUser = loggedInUser;
-        userSettings = UserSettings.from(currentUser);
     }
 
     /**
@@ -1090,59 +1092,21 @@ public class Frontend implements HasHandlers {
         getEventsHandler().runMultipleActionsFailed(failedActionsMap, messageFormatter);
     }
 
+    public UserProfileManager getUserProfileManager() {
+        return userProfileManager;
+    }
+
     /**
-     * Settings retrieved from currently logged-in user.
+     * Settings retrieved for currently logged-in user.
      * Note that it may contain outdated settings (not in sync with the server).
-     * In order to refresh settings use {@linkplain #reloadUser(Consumer, Object)}
+     * In order to refresh settings use {@linkplain UserProfileManager#reloadWebAdminSettings(Consumer, Object)}
      */
-    public UserSettings getUserSettings() {
-        if(getLoggedInUser() != null  && !userSettings.getOriginalUserOptions().equals(getLoggedInUser().getUserOptions())) {
-            // user was directly updated - reload the cache
-            userSettings = UserSettings.from(getLoggedInUser());
+    public WebAdminSettings getWebAdminSettings() {
+        UserProfileProperty webAdminUserOption = getUserProfileManager().getWebAdminUserOption();
+        if (getLoggedInUser() != null &&
+                !webAdminSettings.getOriginalUserOptions().equals(webAdminUserOption)) {
+            webAdminSettings = WebAdminSettings.from(webAdminUserOption);
         }
-        return userSettings;
+        return webAdminSettings;
     }
-
-    /**
-     * Fetch and re-set user instance in {@linkplain Frontend#getLoggedInUser()}.
-     * This allows to get the most up-to-date version of user settings.
-     * The settings might have changed from the time Admin Portal user logged in.
-     * Pushed settings will override the entire server state.
-     * All changes done in the meantime (i.e. via VM Portal) could get lost.
-     *
-     * @param callback to be executed after user is successfully fetched.
-     * @param model    optional(nullable), target/state object to be informed about query status.
-     */
-    public void reloadUser(Consumer<DbUser> callback, Object model) {
-        DbUser currentUser = getLoggedInUser();
-        if (currentUser == null) {
-            return;
-        }
-
-        runQuery(QueryType.GetDbUserByUserId, new IdQueryParameters(currentUser.getId()),
-                new AsyncQuery<>(model, (AsyncCallback<QueryReturnValue>) result -> {
-                    DbUser upToDateUser = result.getReturnValue();
-                    if (upToDateUser == null) {
-                        return;
-                    }
-                    setLoggedInUser(upToDateUser);
-                    callback.accept(upToDateUser);
-                }));
-    }
-
-    /**
-     * Async best-effort upload of user settings to the server.
-     *
-     * @param upToDateUser to be uploaded
-     * @param callback     to be executed after successful upload
-     * @param model        optional(nullable), target/state object to be informed about query status.
-     */
-    public void uploadUserSettings(DbUser upToDateUser, IFrontendActionAsyncCallback callback, Object model) {
-        runAction(ActionType.UpdateUserOptions,
-                new UpdateUserParameters(upToDateUser, false),
-                callback,
-                model
-        );
-    }
-
 }
