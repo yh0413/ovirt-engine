@@ -23,7 +23,7 @@ jobs:
           if [ `git rev-list --max-count=1 HEAD` == `git rev-list --merges --max-count=1 HEAD` ]; then
             IS_MERGE=true
           else
-            COMMIT=`git log --format="%H" -n 1`
+            FULL=`git log --format="%H" -n 1` && COMMIT="${FULL:0:8}"
             TEMPLATE_FILE=${WORK_DIR}/templates/ovirt-engine-job.yaml.j2
             JOB_FILE=${WORK_DIR}/tmp/ovirt-engine-job-${COMMIT}.yaml
             echo ::set-output name=COMMIT::${COMMIT}
@@ -41,7 +41,7 @@ jobs:
         run: |
           sed -e "s#{{ JOB_NAME }}#"${{ steps.vars.outputs.COMMIT }}"#g" ${{ steps.vars.outputs.TEMPLATE_FILE }} > ${{ steps.vars.outputs.JOB_FILE }}
           sed -i "s#{{ PR_NUMBER }}##g" ${{ steps.vars.outputs.JOB_FILE }}
-          sed -i "s#{{ GITHUB_REF }}#"${GITHUB_REF}"#g" ${{ steps.vars.outputs.JOB_FILE }}
+          sed -i "s#{{ GITHUB_REF }}#"${GITHUB_REF:11}"#g" ${{ steps.vars.outputs.JOB_FILE }}
           if [ ${{ steps.vars.outputs.BRANCH }} == 'supervm-releases' ]; then
             sed -i "s#{{ OVIRT_REPO }}#http://172.21.7.2/supervm/"${{ steps.vars.outputs.RELEASE }}"-rc/prolinux/8/arch/x86_64/#g" ${{ steps.vars.outputs.JOB_FILE }}
           else
@@ -77,10 +77,16 @@ jobs:
             DOWNLOAD_DST=/var/www/html/supervm/${{ steps.vars.outputs.RELEASE }}-rc/prolinux/8/arch/x86_64/
           fi
           DOWNLOAD_SRC=http://172.21.7.2/github/ovirt-engine/commits/${{ steps.vars.outputs.COMMIT }}/
-          if [ ${{ steps.vars.outputs.IS_MERGE }} ]; then
+          if [ ${{ steps.vars.outputs.IS_MERGE }} == 'true' ]; then
             PR_NUMBER=`git log --merges -n 1 | grep "Merge pull request" | sed -n "s/^.*Merge pull request #\\s*\\([0-9]*\\).*$/\\1/p"`
             DOWNLOAD_SRC=http://172.21.7.2/github/ovirt-engine/pull-requests/${PR_NUMBER}/
           fi
           ${RUN_CMD} mkdir -p ${DOWNLOAD_DST}/Packages
-          ${RUN_CMD} wget -r -np -nd -A .rpm ${DOWNLOAD_SRC} -P ${DOWNLOAD_DST}/Packages
+          files=`curl -i --connect-timeout 5 --retry 10 http://172.21.7.2/github/ovirt-engine/pull-requests/4/ | grep -o -P '(?<=<a href=").*(?=">)'`
+          files=($files)
+          for (( i=1; i<${#files[@]}; i++ )); do
+            tokens=($(echo ${files[i]} | tr "4.4" "\n"));
+            ${RUN_CMD} sh -c 'rm -f '${DOWNLOAD_DST}'/Packages/'${tokens[0]}'4.4*';
+          done
+          ${RUN_CMD} wget -r -np -nd -A .rpm ${DOWNLOAD_SRC} -P ${DOWNLOAD_DST}/Packages --read-timeout=60
           ${RUN_CMD} createrepo ${DOWNLOAD_DST}
