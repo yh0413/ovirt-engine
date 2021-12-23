@@ -83,7 +83,8 @@
 
 %global ovirt_product_name oVirt Engine
 %global ovirt_product_name_short oVirt Engine
-%global ovirt_product_group Virtualization/Management
+%global ovirt_product_group Tmax A&C Co., Ltd.
+%global packager Tmax A&C Co., Ltd. <https://technet.tmaxsoft.com/>
 %global ovirt_user_description oVirt Manager
 
 
@@ -213,7 +214,7 @@ getent passwd %1 >/dev/null || useradd -r -u %2 -g %3 -c %5 -s /sbin/nologin -d 
 %if %{ovirt_provides_jboss}
 Name:		@PACKAGE_NAME@
 Version:	@RPM_VERSION@
-Release:	@RPM_RELEASE@%{?release_suffix}%{?dist}
+Release:	@RPM_RELEASE@%{?release_suffix}.prolinux8
 %else
 Name:		ovirt-engine
 # start of cheetah processed code
@@ -238,16 +239,18 @@ Name:		ovirt-engine
    #end if
 #end for
 Version:	4.4.9.5
-Release:	$downstream_rpm_release_prefix$release$release_suffix%{?dist}
+Release:	$downstream_rpm_release_prefix$release$release_suffix.prolinux8
 %endif
 Summary:	Management server for Open Virtualization
+Packager:	%{packager}
+Vendor:	%{ovirt_product_group}
 Group:		%{ovirt_product_group}
 License:	ASL 2.0
 %if %{ovirt_provides_jboss}
-URL:		http://www.ovirt.org
-Source0:	http://resources.ovirt.org/pub/ovirt-master-snapshot/src/@PACKAGE_NAME@/@PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz
+URL:		https://github.com/tmax-cloud/ovirt-engine
+Source0:	https://github.com/tmax-cloud/ovirt-engine/archive/@PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz
 %else
-URL:		http://www.redhat.com/products/virtualization
+URL:		https://github.com/tmax-cloud/ovirt-engine
 #
 # Acquire brew/mead pre-built resources.
 #
@@ -400,6 +403,8 @@ virtualization infrastructure for Servers and Desktops.
 %if !%{ovirt_provides_jboss}
 %package -n rhvm
 Summary:    Red Hat Virtualization Manager
+Packager:   %{packager}
+Vendor:     %{ovirt_product_group}
 Group:      %{ovirt_product_group}
 Requires:   ovirt-engine = %{version}-%{release}
 Requires:   ovirt-log-collector >= 4.3.0
@@ -416,6 +421,8 @@ virtualization infrastructure for Servers and Desktops.
 
 %package -n python%{python3_pkgversion}-%{name}-lib
 Summary:	%{ovirt_product_name_short} library
+Packager:	%{packager}
+Vendor:	%{ovirt_product_group}
 Group:		%{ovirt_product_group}
 Requires:	python3-cryptography
 Requires:	python3-dateutil
@@ -428,6 +435,8 @@ Requires:	python3-daemon >= 2.1.2
 
 %package backend
 Summary:	Engine core of %{ovirt_product_name_short}
+Packager:      %{packager}
+Vendor:        %{ovirt_product_group}
 Group:		%{ovirt_product_group}
 License:	ASL 2.0 and LGPLv3 and GPLv3
 Requires:	%{name} = %{version}-%{release}
@@ -471,6 +480,8 @@ The backend engine of %{ovirt_product_name_short}
 
 %package restapi
 Summary:	RESTful API for %{ovirt_product_name_short}
+Packager:      %{packager}
+Vendor:        %{ovirt_product_group}
 Group:		%{ovirt_product_group}
 Requires:	%{name} = %{version}-%{release}
 
@@ -479,6 +490,8 @@ The RESTful API for %{ovirt_product_name_short}
 
 %package setup-base
 Summary:	%{ovirt_product_name_short} suite base setup components.
+Packager:	%{packager}
+Vendor:	%{ovirt_product_group}
 Group:		%{ovirt_product_group}
 Requires:	python3-%{name}-lib >= %{version}-%{release}
 Requires:	python3-ovirt-setup-lib >= 1.1.1
@@ -501,6 +514,8 @@ Conflicts:	%{name}-dwh-setup < 4.4.0
 
 %package setup
 Summary:	Setup and upgrade scripts for %{ovirt_product_name_short}
+Packager:      %{packager}
+Vendor:        %{ovirt_product_group}
 Group:		%{ovirt_product_group}
 Requires:	%{name}-setup-plugin-ovirt-engine = %{version}-%{release}
 %{?extra_setup_requires}
@@ -523,6 +538,8 @@ rm -f %{engine_setup_rpm_state_flag_file}
 
 %package setup-plugin-ovirt-engine
 Summary:	Setup and upgrade specific plugins for %{ovirt_product_name_short}
+Packager:      %{packager}
+Vendor:        %{ovirt_product_group}
 Group:		%{ovirt_product_group}
 Requires:	%{name} >= 4.4.0
 Requires:	%{name}-setup-plugin-ovirt-engine-common = %{version}-%{release}
@@ -551,6 +568,8 @@ Setup and upgrade specific plugins for %{ovirt_product_name_short}
 
 %package setup-plugin-ovirt-engine-common
 Summary:	Setup and upgrade common plugins for %{ovirt_product_name_short}
+Packager:      %{packager}
+Vendor:        %{ovirt_product_group}
 Group:		%{ovirt_product_group}
 Requires:	%{name}-setup-base = %{version}-%{release}
 Requires:	python3-libselinux
@@ -575,6 +594,8 @@ Setup and upgrade common plugins for %{ovirt_product_name_short}
 
 %package dbscripts
 Summary:	Database scripts for %{ovirt_product_name_short}
+Packager:      %{packager}
+Vendor:        %{ovirt_product_group}
 Group:		%{ovirt_product_group}
 Requires:	%{name} = %{version}-%{release}
 
@@ -584,6 +605,8 @@ Database scripts for %{ovirt_product_name_short}
 
 %package webadmin-portal
 Summary:	Web Admin Portal of %{ovirt_product_name_short}
+Packager:      %{packager}
+Vendor:        %{ovirt_product_group}
 Group:		%{ovirt_product_group}
 Requires:	%{name} = %{version}-%{release}
 # Bundled JavaScript and CSS libraries use MIT license.
@@ -594,6 +617,8 @@ The web administration interface to %{ovirt_product_name_short}
 
 %package tools
 Summary:	%{ovirt_product_name_short} Tools
+Packager:      %{packager}
+Vendor:        %{ovirt_product_group}
 Group:		%{ovirt_product_group}
 Requires:	%{name} = %{version}-%{release}
 Requires:	python3-%{name}-lib >= %{version}-%{release}
@@ -630,6 +655,8 @@ Requires(postun):	systemd
 
 %package tools-backup
 Summary:	%{ovirt_product_name_short} Tools (engine-backup)
+Packager:      %{packager}
+Vendor:        %{ovirt_product_group}
 Group:		%{ovirt_product_group}
 Requires:	%{name}-setup-plugin-ovirt-engine-common >= %{version}-%{release}
 Requires:	tar
@@ -644,6 +671,8 @@ Requires:	sqlite
 
 %package websocket-proxy
 Summary:	%{ovirt_product_name_short} Websocket Proxy
+Packager:      %{packager}
+Vendor:        %{ovirt_product_group}
 Group:		%{ovirt_product_group}
 Requires:	python3-%{name}-lib >= %{version}-%{release}
 Requires:	python3-numpy
@@ -673,6 +702,9 @@ Requires(postun):	systemd
 
 %package setup-plugin-websocket-proxy
 Summary:	Setup and upgrade specific plugins for websocket-proxy
+Packager:      %{packager}
+Vendor:        %{ovirt_product_group}
+Group:         %{ovirt_product_group}
 Requires:	%{name}-setup-plugin-ovirt-engine-common = %{version}-%{release}
 Requires:	python3-six
 
@@ -681,6 +713,8 @@ Setup and upgrade specific plugins for websocket-proxy
 
 %package vmconsole-proxy-helper
 Summary:	%{ovirt_product_name_short} VMconsole Proxy Helper
+Packager:      %{packager}
+Vendor:        %{ovirt_product_group}
 Group:		%{ovirt_product_group}
 Requires:	python3-%{name}-lib >= %{version}-%{release}
 Requires:	%{name}-setup-plugin-vmconsole-proxy-helper >= %{version}-%{release}
@@ -692,6 +726,9 @@ with ovirt-vmconsole-proxy package
 
 %package setup-plugin-vmconsole-proxy-helper
 Summary:	Setup and upgrade specific plugins for vmconsole-proxy-helper
+Packager:      %{packager}
+Vendor:        %{ovirt_product_group}
+Group:         %{ovirt_product_group}
 Requires:	%{name}-setup-plugin-ovirt-engine = %{version}-%{release}
 Requires:	%{name}-setup-plugin-ovirt-engine-common = %{version}-%{release}
 Requires:	openssh
@@ -701,6 +738,8 @@ Setup and upgrade specific plugins for vmconsole-proxy-helper
 
 %package health-check-bundler
 Summary:	%{ovirt_product_name_short} health check bundler.
+Packager:      %{packager}
+Vendor:        %{ovirt_product_group}
 Group:		%{ovirt_product_group}
 Requires:	%{name}-setup-base = %{version}-%{release}
 Requires:	makeself >= 2.2
@@ -710,6 +749,9 @@ A utility for creating a bundle script that runs a health check.
 
 %package setup-plugin-cinderlib
 Summary:	Setup and upgrade specific plugins for cinderlib integration database
+Packager:      %{packager}
+Vendor:        %{ovirt_product_group}
+Group:         %{ovirt_product_group}
 Requires:	%{name}-setup-plugin-ovirt-engine = %{version}-%{release}
 Requires:	%{name}-setup-plugin-ovirt-engine-common = %{version}-%{release}
 Requires:	openssh
@@ -719,6 +761,9 @@ Setup and upgrade specific plugins for cinderlib integration database
 
 %package setup-plugin-imageio
 Summary:	Setup imageio service.
+Packager:      %{packager}
+Vendor:        %{ovirt_product_group}
+Group:         %{ovirt_product_group}
 Requires:	%{name}-setup-plugin-ovirt-engine = %{version}-%{release}
 Requires:	%{name}-setup-plugin-ovirt-engine-common = %{version}-%{release}
 # For --show-config, needed during upgrade.
