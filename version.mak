@@ -18,7 +18,7 @@
 MILESTONE_IF_NEEDED=master
 
 # RPM_RELEASE_ON_RELEASE should be set to the rpm release to have on release (non-SNAPSHOT) builds.
-hypervm.22.0.0
+RPM_RELEASE_ON_RELEASE=hypervm.22.0.0
 
 # AUTO_MILESTONE is set to MILESTONE_IF_NEEDED on SNAPSHOT builds, empty otherwise.
 AUTO_MILESTONE=$(shell cat pom.xml | head -n 20 | grep '<version>' | head -n 1 | sed -e 's/.*>\(.*\)<.*/\1/' | grep -q 'SNAPSHOT$$' && echo $(MILESTONE_IF_NEEDED))
