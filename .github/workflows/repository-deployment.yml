@@ -1,6 +1,7 @@
 name: repository-deployment
 
 on: 
+  workflow_dispatch:
   push: 
     branches: [supervm-main, supervm-releases/**]
 jobs:
