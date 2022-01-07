@@ -20,7 +20,7 @@ jobs:
           GITHUB_ID=tmax-cloud
           git clone http://github.com/${GITHUB_ID}/ovirt-engine.git ${{ steps.vars.outputs.TARGET_DIR }}
           cd ${{ steps.vars.outputs.TARGET_DIR }} && git checkout supervm-releases/${{ steps.vars.outputs.RELEASE }}
-          sed -i 's#RPM_RELEASE_ON_RELEASE=.*#hypervm.'${{ steps.vars.outputs.RELEASE }}'#g' version.mak
+          sed -i 's#RPM_RELEASE_ON_RELEASE=.*#RPM_RELEASE_ON_RELEASE=hypervm.'${{ steps.vars.outputs.RELEASE }}'#g' version.mak
           git config user.name "CK2-1" && git config user.email "tmaxcloud.ck2.1@gmail.com"
           git add -A && git commit -m "supervm-release ${{ steps.vars.outputs.RELEASE }}"
           git push https://${GITHUB_ID}:${{ secrets.TOKEN }}@github.com/${GITHUB_ID}/ovirt-engine.git --all
