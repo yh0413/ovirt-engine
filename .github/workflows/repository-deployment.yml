@@ -42,9 +42,9 @@ jobs:
         run: |
           sed -e "s#{{ JOB_NAME }}#"${{ steps.vars.outputs.COMMIT }}"#g" ${{ steps.vars.outputs.TEMPLATE_FILE }} > ${{ steps.vars.outputs.JOB_FILE }}
           sed -i "s#{{ PR_NUMBER }}##g" ${{ steps.vars.outputs.JOB_FILE }}
-          sed -i "s#activeDeadlineSeconds: 1800#activeDeadlineSeconds: 12000#g" ${{ steps.vars.outputs.JOB_FILE }}
           sed -i "s#{{ GITHUB_REF }}#"${GITHUB_REF:11}"#g" ${{ steps.vars.outputs.JOB_FILE }}
           if [ ${{ steps.vars.outputs.BRANCH }} == 'supervm-releases' ]; then
+            sed -i "s#activeDeadlineSeconds: 1800#activeDeadlineSeconds: 9000#g" ${{ steps.vars.outputs.JOB_FILE }}
             sed -i "s#{{ OVIRT_REPO }}#http://172.21.7.2/supervm/"${{ steps.vars.outputs.RELEASE }}"-rc/prolinux/8/arch/x86_64/#g" ${{ steps.vars.outputs.JOB_FILE }}
           else
             sed -i "s#{{ OVIRT_REPO }}#http://172.21.7.2/supervm/main/prolinux/8/arch/x86_64/#g" ${{ steps.vars.outputs.JOB_FILE }}
