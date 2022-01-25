@@ -50,12 +50,20 @@ public class MainUserView extends AbstractMainWithDetailsTableView<DbUser, UserL
         initTable();
         initTableOverhead();
         initWidget(getTable());
+
+        userTypes.updateSelectedValue(UserOrGroup.User, true);
         userTypeChanged(UserOrGroup.User);
     }
 
+    final UsersTypeRadioGroup.UserTypeChangeHandler userTypeChangeHandler = newType -> {
+        getMainModel().setUserOrGroup(newType);
+        userTypes.updateSelectedValue(newType, true);
+        userTypeChanged(newType);
+    };
+
     private void initTableOverhead() {
         userTypes = new UsersTypeRadioGroup();
-        userTypes.addChangeHandler(this);
+        userTypes.addChangeHandler(userTypeChangeHandler);
         getTable().setTableOverhead(userTypes);
     }
 
@@ -147,9 +155,13 @@ public class MainUserView extends AbstractMainWithDetailsTableView<DbUser, UserL
         getTable().addColumn(emailColumn, constants.emailUser());
     }
 
-    @Override
     public void userTypeChanged(UserOrGroup newType) {
-        boolean isUser = newType == UserOrGroup.User;
+        ensureColumnsVisible(newType);
+        updateSearchString(newType);
+    }
+
+    public void ensureColumnsVisible(UserOrGroup userType) {
+        boolean isUser = userType == UserOrGroup.User;
         getTable().ensureColumnVisible(firstNameColumn, constants.firstnameUser(), isUser, "150px"); //$NON-NLS-1$
         getTable().ensureColumnVisible(groupNameColumn, constants.groupNameUser(), !isUser, "150px"); //$NON-NLS-1$
         getTable().ensureColumnVisible(lastNameColumn, constants.lastNameUser(), isUser, "150px"); //$NON-NLS-1$
@@ -157,8 +169,6 @@ public class MainUserView extends AbstractMainWithDetailsTableView<DbUser, UserL
         getTable().ensureColumnVisible(authzColumn, constants.authz(), isUser, "150px"); //$NON-NLS-1$
         getTable().ensureColumnVisible(namespaceColumn, constants.namespace(), isUser, "150px"); //$NON-NLS-1$
         getTable().ensureColumnVisible(emailColumn, constants.emailUser(), isUser);
-        updateSearchString(newType);
-        userTypes.updateSelectedValue(newType, false);
     }
 
     private void updateSearchString(UserOrGroup userType) {
