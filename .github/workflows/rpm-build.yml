@@ -27,12 +27,13 @@ jobs:
         run: |
           sed -e "s#{{ JOB_NAME }}#${{ steps.vars.outputs.JOB_NAME }}#g" ${{ steps.vars.outputs.TEMPLATE_FILE }} > ${{ steps.vars.outputs.JOB_FILE }}
           sed -i "s#{{ PR_NUMBER }}#${{ steps.vars.outputs.PR_NUMBER }}#g" ${{ steps.vars.outputs.JOB_FILE }}
-          sed -i "s#{{ GITHUB_REF }}##g" ${{ steps.vars.outputs.JOB_FILE }}
+          sed -i "s#{{ GITHUB_REF }}#"${GITHUB_REF:11}"#g" ${{ steps.vars.outputs.JOB_FILE }}
           BRANCH=$(echo $GITHUB_BASE_REF | awk 'BEGIN { FS = "/" } ; { print $1 }')
           if [ ${BRANCH} == 'supervm-main' ]; then
             sed -i "s#{{ OVIRT_REPO }}#http://172.21.7.2/supervm/main/prolinux/8/arch/x86_64/#g" ${{ steps.vars.outputs.JOB_FILE }}
           else
             RELEASE=$(echo $GITHUB_BASE_REF | awk 'BEGIN { FS = "/" } ; { print $2 }')
+            sed -i "s#activeDeadlineSeconds:.*#activeDeadlineSeconds: 9000#g" ${{ steps.vars.outputs.JOB_FILE }}
             sed -i "s#{{ OVIRT_REPO }}#http://172.21.7.2/supervm/"${RELEASE}"-rc/prolinux/8/arch/x86_64/#g" ${{ steps.vars.outputs.JOB_FILE }}
           fi
           sed -i "s#{{ TARGET_DIR }}##g" ${{ steps.vars.outputs.JOB_FILE }}
