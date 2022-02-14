@@ -38,9 +38,7 @@ import org.ovirt.engine.ui.uicommonweb.models.users.AdElementListModel.AdSearchT
 import org.ovirt.engine.ui.uicommonweb.place.WebAdminApplicationPlaces;
 import org.ovirt.engine.ui.uicompat.ConstantsManager;
 import org.ovirt.engine.ui.uicompat.IFrontendActionAsyncCallback;
-//import org.ovirt.engine.ui.uicompat.IFrontendMultipleActionAsyncCallback;
 
-//import com.google.gwt.core.client.Scheduler;
 import com.google.inject.Inject;
 
 public class UserListModel extends ListWithSimpleDetailsModel<Void, DbUser> implements TagAssigningModel<DbUser> {
