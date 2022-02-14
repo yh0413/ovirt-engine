@@ -36,6 +36,7 @@ public class MainUserPresenter extends AbstractMainWithDetailsPresenter<DbUser, 
 
     public interface ViewDef extends AbstractMainWithDetailsPresenter.ViewDef<DbUser> {
         void userTypeChanged(UserOrGroup newType);
+        void ensureColumnsVisible(UserOrGroup newType);
     }
 
     @Inject
@@ -50,7 +51,7 @@ public class MainUserPresenter extends AbstractMainWithDetailsPresenter<DbUser, 
     @Override
     protected void onReveal() {
         super.onReveal();
-        getView().userTypeChanged(UserOrGroup.User);
+        getView().ensureColumnsVisible(getModel().getUserOrGroup());
     }
 
     @Override
