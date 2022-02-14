@@ -22,6 +22,10 @@ public class UsersTypeRadioGroup extends Composite {
 
     private final List<UserTypeChangeHandler> changeHandlers = new ArrayList<>();
 
+    public interface UserTypeChangeHandler {
+        void userTypeChanged(UserOrGroup newType);
+    }
+
     @UiField
     RadioButton users;
 
