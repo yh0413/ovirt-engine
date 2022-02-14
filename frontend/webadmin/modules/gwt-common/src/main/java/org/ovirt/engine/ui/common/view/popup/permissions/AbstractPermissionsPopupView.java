@@ -284,7 +284,7 @@ public abstract class AbstractPermissionsPopupView<T extends AdElementListModel>
         profileSelection.setEnabled(!isEveryoneOrMyGroups);
         namespaceSelection.setEnabled(!isEveryoneOrMyGroups);
         searchStringEditor.setEnabled(!isEveryoneOrMyGroups);
-        searchButton.getCommand().setIsExecutionAllowed(!isEveryoneOrMyGroups);
+        searchButton.setVisible(!isEveryoneOrMyGroups);
         searchItems.setVisible(!isEveryone);
     }
 
