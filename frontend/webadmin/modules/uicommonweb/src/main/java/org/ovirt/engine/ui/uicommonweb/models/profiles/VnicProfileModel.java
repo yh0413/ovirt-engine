@@ -276,6 +276,14 @@ public abstract class VnicProfileModel extends Model {
                     .findFirst().get();
             getNetwork().setSelectedItem(selected);
             getNetwork().setIsChangeable(false);
+            //IMS 277039
+            if(profile.isPassthrough()) {
+                    getPortMirroring().setIsChangeable(profile.isPortMirroring());
+                    getPortMirroring().setChangeProhibitionReason(constants.portMirroringNotChangedIfPassthrough());
+                    getPortMirroring().setEntity(profile.isPortMirroring());
+
+                    getPassthrough().setEntity(profile.isPassthrough());
+            }
         }
     }
 
