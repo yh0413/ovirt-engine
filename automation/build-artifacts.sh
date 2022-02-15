@@ -34,7 +34,7 @@ if [ -z "${MILESTONE}" ]; then
 fi
 
 # For milestone (non-release) master builds, build permutations for chrome and firefox
-if [ -n "${MILESTONE}" ] && [[ "${MILESTONE}" != "supervm-releases"* ]]; then
+if [ -z "${TARGET_BRANCH}" ] || [[ "${TARGET_BRANCH}" != "supervm-releases" ]]; then
 	export EXTRA_BUILD_FLAGS="-gs $MAVEN_SETTINGS \
 	    -D gwt.userAgent=gecko1_8,safari \
 	"
@@ -99,7 +99,7 @@ BUILD_UT=0
 BUILD_ALL_USER_AGENTS=0
 BUILD_LOCALES=0
 
-if [ -z "${MILESTONE}" ] || { [ -n "${MILESTONE}" ] && [[ "${MILESTONE}" == "supervm-releases"* ]]; }; then
+if [ -n "${TARGET_BRANCH}" ] && [[ "${TARGET_BRANCH}" == "supervm-releases" ]]; then
 	BUILD_UT=1
 	BUILD_ALL_USER_AGENTS=1
 	BUILD_LOCALES=1
